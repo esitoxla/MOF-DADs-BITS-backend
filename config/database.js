@@ -1,9 +1,14 @@
 import { Sequelize } from "sequelize";
 
-const sequelize = new Sequelize("MOF_db", "root", "toxla@2025", {
-  host: "localhost",
-  dialect: "mysql",
-});
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASS,
+  {
+    host: process.env.DB_HOST,
+    dialect: "mysql",
+  }
+);
 
 async function testConnection() {
     try {

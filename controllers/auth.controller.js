@@ -102,6 +102,48 @@ export const login = async (req, res, next) => {
 };
 
 
+
+export const getUser = async (req, res, next) => {
+  try {
+    const token = req.cookies.jwt;
+
+    if (!token) {
+      const error = new Error("User not found");
+      error.statusCode = 404;
+      return next(error);
+    }
+
+    //Verify JWT
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      const error = new Error("Token invalid");
+      error.statusCode = 401;
+      return next(error);
+    }
+
+    //Find user by primary key (id)
+    const user = await User.findByPk(decoded.id, {
+      attributes: { exclude: ["password"] }, // omit password field
+    });
+
+    if (!user) {
+      const error = new Error("User not found");
+      error.statusCode = 404;
+      return next(error);
+    }
+
+    //Return response
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
 export const changePassword = async (req, res, next) => {
   try {
     const { oldPassword, newPassword, confirmPassword } = req.body;
