@@ -14,9 +14,9 @@ router.post("/register", registerUser);
 
 router.post("/login", login);
 
-router.post("/change-password", protectRoutes, changePassword);
+router.post("/change-password", changePassword);
 
-router.post("/logout", protectRoutes, logout);
+router.post("/logout", logout);
 
 export default router;
 

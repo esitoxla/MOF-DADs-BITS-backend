@@ -1,6 +1,61 @@
 import User from "../models/users.js";
 import { Op } from "sequelize";
 
+// Add a new user (Admin only)
+export const addUser = async (req, res, next) => {
+  try {
+    const {
+      name,
+      email,
+      password,
+      username,
+      role,
+      organization,
+      designation,
+      lastLogin,
+    } = req.body;
+
+    if (
+      !name ||
+      !email ||
+      !password ||
+      !username ||
+      !organization ||
+      !designation
+    ) {
+      const error = new Error("All fields are required");
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      const error = new Error("User already exists");
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      username,
+      role,
+      organization,
+      designation,
+    });
+
+    const { password: _, ...userData } = user.get({ plain: true });
+    res.status(201).json({
+      success: true,
+      message: "User created successfully",
+      user: userData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Get all users (Admin only)
 export const getAllUsers = async (req, res, next) => {
   try {
@@ -43,7 +98,6 @@ export const getAllUsers = async (req, res, next) => {
   }
 };
 
-
 // Get a single user (Admin only)
 export const getUserById = async (req, res, next) => {
   try {
@@ -64,7 +118,6 @@ export const getUserById = async (req, res, next) => {
     next(error);
   }
 };
-
 
 // Update user (Admin only)
 export const updateUser = async (req, res, next) => {
@@ -90,7 +143,6 @@ export const updateUser = async (req, res, next) => {
     next(error);
   }
 };
-
 
 // Delete user (Admin only)
 export const deleteUser = async (req, res, next) => {
