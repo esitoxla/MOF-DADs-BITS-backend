@@ -83,8 +83,8 @@ export const login = async (req, res, next) => {
     // Send cookie to browser
     res.cookie("jwt", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: true,
+      sameSite: none,
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
