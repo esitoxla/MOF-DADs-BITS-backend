@@ -18,31 +18,36 @@ export const addExpenditure = async (req, res, next) => {
       actualPayment,
     } = req.body;
 
-    if (
-      !activity ||
-      !date ||
-      !economicClassification ||
-      !sourceOfFunding ||
-      !naturalAccount ||
-      !description ||
-      !appropriation ||
-      !allotment ||
-      !allotmentBalance 
-    ) {
-      const error = new Error("All fields are required");
+    // Strictly required fields
+    const requiredFields = [
+      { key: "activity", value: activity },
+      { key: "date", value: date },
+      { key: "economicClassification", value: economicClassification },
+      { key: "sourceOfFunding", value: sourceOfFunding },
+      { key: "naturalAccount", value: naturalAccount },
+      { key: "description", value: description },
+    ];
+
+    const missing = requiredFields.filter((f) => !f.value);
+    if (missing.length > 0) {
+      const error = new Error(`${missing[0].key} is required`);
       error.statusCode = 400;
       return next(error);
     }
 
-    const existingExpenditure = await BudgetExpenditure.findOne({
+    // Prevent duplicate entries
+    const existing = await BudgetExpenditure.findOne({
       where: { activity, date },
     });
-    if (existingExpenditure) {
-      const error = new Error("Data already exist");
+    if (existing) {
+      const error = new Error(
+        "Record already exists for this activity and date"
+      );
       error.statusCode = 400;
       return next(error);
     }
 
+    // Create record safely
     const expenditure = await BudgetExpenditure.create({
       activity,
       date,
@@ -50,13 +55,14 @@ export const addExpenditure = async (req, res, next) => {
       sourceOfFunding,
       naturalAccount,
       description,
-      appropriation,
-      allotment,
-      allotmentBalance,
-      releases,
-      actualExpenditure,
-      actualPayment,
+      appropriation: appropriation ?? null,
+      allotment: allotment ?? null,
+      allotmentBalance: allotmentBalance ?? null,
+      releases: releases ?? null,
+      actualExpenditure: actualExpenditure ?? null,
+      actualPayment: actualPayment ?? null,
     });
+
     res.status(201).json({
       success: true,
       message: "Expenditure record added successfully",
@@ -66,6 +72,7 @@ export const addExpenditure = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // Fetch all expenditure records
 export const getAllExpenditure = async (req, res, next) => {
