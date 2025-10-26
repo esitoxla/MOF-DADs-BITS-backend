@@ -28,7 +28,6 @@ export const protectRoutes = async (req, res, next) => {
     req.user = user; // attach to request
     next(); // move to the next middleware or route
   } catch (error) {
-    console.error("protectRoutes error:", error.message);
-    res.status(500).json({ message: "Server error in protectRoutes" });
+   next()
   }
 };

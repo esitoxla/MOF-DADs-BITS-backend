@@ -15,7 +15,7 @@ router.post("/register", registerUser);
 
 router.post("/login", login);
 
-router.get("/me", protectRoutes, getUser);
+router.get("/me", getUser);
 
 router.post("/change-password", changePassword);
 
