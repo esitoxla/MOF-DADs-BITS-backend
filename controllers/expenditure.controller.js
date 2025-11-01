@@ -18,7 +18,15 @@ export const addExpenditure = async (req, res, next) => {
       actualPayment,
     } = req.body;
 
-    // Strictly required fields
+    // Ensure user info is available
+    const user = req.user;
+    if (!user) {
+      const error = new Error("Unauthorized: User not found.");
+      error.statusCode = 401;
+      return next(error);
+    }
+
+    // Check for required fields
     const requiredFields = [
       { key: "activity", value: activity },
       { key: "date", value: date },
@@ -35,7 +43,7 @@ export const addExpenditure = async (req, res, next) => {
       return next(error);
     }
 
-    // Prevent duplicate entries
+    // Prevent duplicate activity on same date
     const existing = await BudgetExpenditure.findOne({
       where: { activity, date },
     });
@@ -47,7 +55,7 @@ export const addExpenditure = async (req, res, next) => {
       return next(error);
     }
 
-    // Create record safely
+    // Create expenditure record
     const expenditure = await BudgetExpenditure.create({
       activity,
       date,
@@ -61,6 +69,10 @@ export const addExpenditure = async (req, res, next) => {
       releases: releases ?? null,
       actualExpenditure: actualExpenditure ?? null,
       actualPayment: actualPayment ?? null,
+
+      // Automatically attach logged-in user details
+      userId: user.id,
+      organization: user.organization, // optional, if your model has this
     });
 
     res.status(201).json({
@@ -72,6 +84,7 @@ export const addExpenditure = async (req, res, next) => {
     next(error);
   }
 };
+
 
 
 // Fetch all expenditure records
