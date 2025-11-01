@@ -35,28 +35,56 @@ const BudgetExpenditure = sequelize.define(
       allowNull: false,
     },
     appropriation: {
-      type: DataTypes.STRING,
+      type: DataTypes.DECIMAL(15, 2),
       allowNull: false,
+      validate: {
+        min: 0, // ensures value is 0 or greater
+      },
     },
     allotment: {
-      type: DataTypes.STRING,
+      type: DataTypes.DECIMAL(15, 2),
       allowNull: false,
+      validate: {
+        min: 0,
+      },
     },
     allotmentBalance: {
-      type: DataTypes.STRING,
+      type: DataTypes.DECIMAL(15, 2),
       allowNull: false,
+      validate: {
+        min: 0,
+      },
     },
     releases: {
-      type: DataTypes.STRING,
+      type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
+      validate: {
+        min: 0,
+      },
     },
     actualExpenditure: {
-      type: DataTypes.STRING,
+      type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
+      validate: {
+        min: 0,
+      },
     },
     actualPayment: {
-      type: DataTypes.STRING,
+      type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
+      validate: {
+        min: 0,
+      },
+    },
+    userId: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true, // or false if required
+      references: {
+        model: "Users", // table name (not model name)
+        key: "id", //  foreign key column in Users table
+      },
+      onUpdate: "CASCADE",
+      onDelete: "SET NULL", // or "CASCADE" if you want child rows deleted too
     },
   },
   { timestamps: true }

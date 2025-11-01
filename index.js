@@ -7,6 +7,7 @@ import { errorHandler } from "./middleware/errorHandling.js";
 import authRoute from "./routes/auth.route.js"
 import userRoute from "./routes/user.route.js"
 import expenditureRoute from "./routes/expenditure.route.js"
+import reportRoute from "./routes/report.route.js"
 
 const PORT = process.env.PORT || 7005;
 
@@ -27,6 +28,7 @@ app.use(cookieParser());
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/expense", expenditureRoute);
+app.use("/api/reports", reportRoute);
 
 //middleware
 app.use(notFound);
