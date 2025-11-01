@@ -1,6 +1,6 @@
 import sequelize from "../config/database.js";
 import BudgetExpenditure from "../models/expenditure.model.js";
-import { Op } from "sequelize";
+import { Op, fn, col } from "sequelize";
 import User from "../models/users.js";
 
 export const getQuarterlyReport = async (req, res, next) => {
@@ -9,7 +9,7 @@ export const getQuarterlyReport = async (req, res, next) => {
     const user = await User.findByPk(req.user.id);
 
     if (!year || !quarter) {
-       const error = new Error("Year and quarter are required.");
+      const error = new Error("Year and quarter are required.");
       error.statusCode = 404;
       return next(error);
     }
@@ -28,12 +28,19 @@ export const getQuarterlyReport = async (req, res, next) => {
       date: { [Op.between]: [quarterStart, quarterEnd] },
     };
 
-    // Org restriction
-    if (user.role !== "admin") {
-      where.organization = user.organization;
-    } else if (organization) {
-      where.organization = organization;
-    }
+    // Organization restriction using JOIN
+    const include = [
+      {
+        model: User,
+        attributes: [], // Do not select extra user columns
+        where:
+          user.role === "admin"
+            ? organization
+              ? { organization }
+              : {}
+            : { organization: user.organization },
+      },
+    ];
 
     // Funding source filter
     let groupBy = ["economicClassification"];
@@ -46,19 +53,14 @@ export const getQuarterlyReport = async (req, res, next) => {
     // Query and aggregate
     const report = await BudgetExpenditure.findAll({
       where,
+      include,
       attributes: [
         "economicClassification",
         ...(sourceOfFunding === "ALL" ? ["sourceOfFunding"] : []),
-        [
-          sequelize.fn("SUM", sequelize.col("appropriation")),
-          "totalAppropriation",
-        ],
-        [sequelize.fn("SUM", sequelize.col("releases")), "totalReleases"],
-        [
-          sequelize.fn("SUM", sequelize.col("actualExpenditure")),
-          "totalExpenditure",
-        ],
-        [sequelize.fn("SUM", sequelize.col("actualPayment")), "totalPayment"],
+        [fn("SUM", col("appropriation")), "totalAppropriation"],
+        [fn("SUM", col("releases")), "totalReleases"],
+        [fn("SUM", col("actualExpenditure")), "totalExpenditure"],
+        [fn("SUM", col("actualPayment")), "totalPayment"],
       ],
       group: groupBy,
       order: [
@@ -97,7 +99,5 @@ export const getQuarterlyReport = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
-    // console.error("Error generating report:", error);
-    // res.status(500).json({ message: "Internal Server Error" });
   }
 };
