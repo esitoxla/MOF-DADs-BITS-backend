@@ -90,13 +90,22 @@ export const addExpenditure = async (req, res, next) => {
 // Fetch all expenditure records
 export const getAllExpenditure = async (req, res, next) => {
   try {
+    const user = req.user; // logged-in user
+
+    // Default: Admin sees all, others see only their organization
+    const include = [
+      {
+        model: User,
+        attributes: ["id", "name", "organization"],
+        where:
+          user.role === "admin"
+            ? undefined
+            : { organization: user.organization },
+      },
+    ];
+
     const expenses = await BudgetExpenditure.findAll({
-      include: [
-        {
-          model: User,
-          attributes: ["id", "name"],
-        },
-      ],
+      include,
       order: [["createdAt", "DESC"]],
     });
 
