@@ -4,10 +4,10 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandling.js";
-import authRoute from "./routes/auth.route.js"
-import userRoute from "./routes/user.route.js"
-import expenditureRoute from "./routes/expenditure.route.js"
-import reportRoute from "./routes/report.route.js"
+import authRoute from "./routes/auth.route.js";
+import userRoute from "./routes/user.route.js";
+import expenditureRoute from "./routes/expenditure.route.js";
+import reportRoute from "./routes/report.route.js";
 
 const PORT = process.env.PORT || 7005;
 
@@ -15,10 +15,12 @@ const app = express();
 
 app.use(express.json());
 
+app.use(express.urlencoded({ extended: true }));
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://mof-dads-bits.netlify.app"],
-    credentials: true
+    origin: ["http://localhost:5174", "https://mof-dads-bits.netlify.app"],
+    credentials: true,
   })
 );
 
@@ -33,8 +35,6 @@ app.use("/api/reports", reportRoute);
 //middleware
 app.use(notFound);
 app.use(errorHandler);
-
-
 
 sequelize.sync().then(() => {
   app.listen(PORT, () => {

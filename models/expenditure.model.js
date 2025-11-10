@@ -77,7 +77,7 @@ const BudgetExpenditure = sequelize.define(
       },
     },
     userId: {
-      type: DataTypes.INTEGER.UNSIGNED,
+      type: DataTypes.INTEGER,
       allowNull: true, // or false if required
       references: {
         model: "Users", // table name (not model name)
@@ -85,6 +85,35 @@ const BudgetExpenditure = sequelize.define(
       },
       onUpdate: "CASCADE",
       onDelete: "SET NULL", // or "CASCADE" if you want child rows deleted too
+    },
+    status: {
+      type: DataTypes.ENUM("Pending", "Reviewed", "Approved"),
+      defaultValue: "Pending",
+      allowNull: false,
+    },
+
+    // Reviewer details
+    reviewedBy: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    reviewedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    reviewComment: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+
+    // Approver details
+    approvedBy: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    approvedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
   },
   { timestamps: true }
