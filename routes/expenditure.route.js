@@ -8,17 +8,17 @@ const router = Router();
 
 router.use(protectRoutes);
 
-router.post("/", restrict("data_entry"), addExpenditure);
+router.post("/", restrict("data_entry", "admin"), addExpenditure);
 
-router.put("/:id", restrict("data_entry"), updateExpenditure);
+router.put("/:id", restrict("data_entry", "admin"), updateExpenditure);
 
-router.delete("/:id", restrict("data_entry"), deleteExpenditure);
+router.delete("/:id", restrict("data_entry", "admin"), deleteExpenditure);
 
 //reviewer
-router.patch("/:id/review", restrict("reviewer"), reviewExpenditure);
+router.patch("/:id/review", restrict("reviewer", "admin"), reviewExpenditure);
 
 //approver
-router.patch("/:id/approve", restrict("approver"), approveExpenditure);
+router.patch("/:id/approve", restrict("approver", "admin"), approveExpenditure);
 
 router.get("/", getAllExpenditure);
 

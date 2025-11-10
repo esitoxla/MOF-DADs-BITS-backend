@@ -19,7 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
-    origin: ["http://localhost:5174", "https://mof-dads-bits.netlify.app"],
+    origin: ["http://localhost:5173", "https://mof-dads-bits.netlify.app"],
     credentials: true,
   })
 );
