@@ -18,4 +18,8 @@ export default {
     port: process.env.DB_PROD_PORT,
     dialect: "mysql",
   },
+  production: {
+    use_env_variable: "DATABASE_URL", 
+    dialect: "mysql",
+  },
 };
