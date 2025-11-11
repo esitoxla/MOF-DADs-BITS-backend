@@ -7,6 +7,7 @@ export default {
     password: process.env.DB_PASS || null,
     database: process.env.DB_NAME || "mof_db",
     host: process.env.DB_HOST || "127.0.0.1",
+    port: process.env.PORT || 7005,
     dialect: "mysql",
   },
   production: {
@@ -14,6 +15,7 @@ export default {
     password: process.env.DB_PROD_PASS,
     database: process.env.DB_PROD_NAME,
     host: process.env.DB_PROD_HOST,
+    port: process.env.DB_PROD_PORT,
     dialect: "mysql",
   },
 };
