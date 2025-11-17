@@ -100,3 +100,17 @@ export function groupEconomicData(report, selectedSource) {
 
   return Array.from(map.values());
 }
+
+
+
+export function sortByEconomicOrder(arr) {
+  const desiredOrder = [
+    "Compensation of Employees",
+    "Use of Goods and Services",
+    "Capital Expenditure",
+  ];
+
+  return arr.sort(
+    (a, b) => desiredOrder.indexOf(a.title) - desiredOrder.indexOf(b.title)
+  );
+}

@@ -4,7 +4,7 @@ import User from "../models/users.js";
 import { Op, fn, col } from "sequelize";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getQuarterlyReportData, groupEconomicData } from "../services/report.service.js";
+import { getQuarterlyReportData, groupEconomicData, sortByEconomicOrder } from "../services/report.service.js";
 import { generateQuarterlyPDF } from "../utils/pdfGenerator.js";
 
 
@@ -177,7 +177,9 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       ],
     });
 
-    const grouped = groupEconomicData(report, sourceOfFunding);
+    let grouped = groupEconomicData(report, sourceOfFunding);
+      grouped = sortByEconomicOrder(grouped);
+
 
     // Compute totals
     const totals = grouped.reduce(
@@ -309,7 +311,8 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
       user,
     });
 
-    const grouped = groupEconomicData(report, sourceOfFunding);
+    let grouped = groupEconomicData(report, sourceOfFunding);
+    grouped = sortByEconomicOrder(grouped);
 
     // You probably already have totals somewhere; if not, compute here:
     const totals = grouped.reduce(
