@@ -4,7 +4,7 @@ import User from "../models/users.js";
 import { Op, fn, col } from "sequelize";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getQuarterlyReportData, groupEconomicData, sortByEconomicOrder } from "../services/report.service.js";
+import { getQuarterlyReportData, groupEconomicData, sortByEconomicOrder, sortFundingSources } from "../services/report.service.js";
 import { generateQuarterlyPDF } from "../utils/pdfGenerator.js";
 
 
@@ -178,8 +178,17 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
     });
 
     let grouped = groupEconomicData(report, sourceOfFunding);
-      grouped = sortByEconomicOrder(grouped);
 
+    // Sort economic items
+    grouped = sortByEconomicOrder(grouped);
+
+    // Sort breakdown only when ALL sources are shown
+    if (sourceOfFunding === "ALL") {
+      grouped = grouped.map((item) => ({
+        ...item,
+        breakdown: sortFundingSources(item.breakdown),
+      }));
+    }
 
     // Compute totals
     const totals = grouped.reduce(
@@ -208,7 +217,6 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
     sheet.addRow([
       "Summary of Budget Performance by Economic Classification",
     ]).font = { bold: true, size: 14 };
-   
 
     const header = [
       "EXPENDITURE ITEM",
@@ -312,7 +320,17 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
     });
 
     let grouped = groupEconomicData(report, sourceOfFunding);
+
+    // Sort economic items
     grouped = sortByEconomicOrder(grouped);
+
+    // Sort breakdown only when ALL sources are shown
+    if (sourceOfFunding === "ALL") {
+      grouped = grouped.map((item) => ({
+        ...item,
+        breakdown: sortFundingSources(item.breakdown),
+      }));
+    }
 
     // You probably already have totals somewhere; if not, compute here:
     const totals = grouped.reduce(

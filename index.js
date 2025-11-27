@@ -8,6 +8,7 @@ import authRoute from "./routes/auth.route.js";
 import userRoute from "./routes/user.route.js";
 import expenditureRoute from "./routes/expenditure.route.js";
 import reportRoute from "./routes/report.route.js";
+import revenueRoute from "./routes/revenue.route.js";
 
 const PORT = process.env.PORT || 7005;
 
@@ -24,6 +25,7 @@ app.use(
   })
 );
 
+
 app.use(cookieParser());
 
 //routes
@@ -31,6 +33,7 @@ app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/expense", expenditureRoute);
 app.use("/api/reports", reportRoute);
+app.use("/api/revenue", revenueRoute);
 
 //middleware
 app.use(notFound);

@@ -114,3 +114,12 @@ export function sortByEconomicOrder(arr) {
     (a, b) => desiredOrder.indexOf(a.title) - desiredOrder.indexOf(b.title)
   );
 }
+
+
+export function sortFundingSources(breakdown) {
+  const order = ["GoG", "IGF", "DPF"];
+
+  return breakdown.sort(
+    (a, b) => order.indexOf(a.source) - order.indexOf(b.source)
+  );
+}
