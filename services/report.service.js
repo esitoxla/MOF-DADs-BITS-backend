@@ -1,4 +1,5 @@
 import BudgetExpenditure from "../models/expenditure.model.js";
+import Revenue from "../models/revenue.model.js";
 import User from "../models/users.js";
 import { Op, fn, col } from "sequelize";
 
@@ -121,5 +122,99 @@ export function sortFundingSources(breakdown) {
 
   return breakdown.sort(
     (a, b) => order.indexOf(a.source) - order.indexOf(b.source)
+  );
+}
+
+
+
+// =======================
+// REVENUE REPORT SECTION
+// =======================
+
+export async function getQuarterlyRevenueData({
+  year,
+  quarter,
+  organization,
+  user,
+}) {
+  const quarters = {
+    1: [`${year}-01-01`, `${year}-03-31`],
+    2: [`${year}-04-01`, `${year}-06-30`],
+    3: [`${year}-07-01`, `${year}-09-30`],
+    4: [`${year}-10-01`, `${year}-12-31`],
+  };
+
+  const [start, end] = quarters[quarter];
+
+  let where = { date: { [Op.between]: [start, end] } };
+
+  const include = [
+    {
+      model: User,
+      attributes: [],
+      where:
+        user.role === "admin"
+          ? organization
+            ? { organization }
+            : {}
+          : { organization: user.organization },
+    },
+  ];
+
+  // GROUP revenue by category
+  const records = await Revenue.findAll({
+    where,
+    include,
+    attributes: [
+      "revenue_category",
+      [fn("SUM", col("budgetProjections")), "totalBudget"],
+      [fn("SUM", col("actual_collection")), "totalCollection"],
+      [fn("SUM", col("payment_amount")), "totalPayment"],
+      [fn("SUM", col("retention_amount")), "totalRetention"],
+      [fn("MAX", col("remarks")), "remarks"],
+    ],
+    group: ["revenue_category"],
+    order: [["revenue_category", "ASC"]],
+  });
+
+  return records;
+}
+
+
+// Group revenue report data into table format
+export function groupRevenueData(records) {
+  return records.map((item) => ({
+    category: item.revenue_category,
+    projection: Number(item.dataValues.totalBudget || 0),
+    actual: Number(item.dataValues.totalCollection || 0),
+    payment: Number(item.dataValues.totalPayment || 0),
+    retention: Number(item.dataValues.totalRetention || 0),
+    // projection for December (if not stored, you can compute something or keep 0)
+    projectionDec: Number(item.dataValues.totalBudget * 0.1667 || 0),
+    remarks: item.dataValues.remarks || "",
+  }));
+}
+
+
+//This converts DB raw data → your React table format.
+
+
+// Calculate totals for revenue footer row
+export function totalRevenueSummary(grouped) {
+  return grouped.reduce(
+    (acc, x) => ({
+      projection: acc.projection + x.projection,
+      actual: acc.actual + x.actual,
+      payment: acc.payment + x.payment,
+      retention: acc.retention + x.retention,
+      projectionDec: acc.projectionDec + x.projectionDec,
+    }),
+    {
+      projection: 0,
+      actual: 0,
+      payment: 0,
+      retention: 0,
+      projectionDec: 0,
+    }
   );
 }

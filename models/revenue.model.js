@@ -23,7 +23,7 @@ const Revenue = sequelize.define(
 
     // Retention percentage from user's organization
     retention_rate: {
-      type: DataTypes.DECIMAL(5, 2),
+      type: DataTypes.INTEGER(2),
       allowNull: false,
     },
 
