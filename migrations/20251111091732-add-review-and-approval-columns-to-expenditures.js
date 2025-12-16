@@ -1,41 +1,61 @@
 "use strict";
 
 export async function up(queryInterface, Sequelize) {
-  await queryInterface.addColumn("expenditures", "status", {
-    type: Sequelize.ENUM("Pending", "Reviewed", "Approved"),
-    defaultValue: "Pending",
-    after: "userId", // ensures it appears right after userId
-  });
+  const table = await queryInterface.describeTable("expenditures");
 
-  await queryInterface.addColumn("expenditures", "reviewedBy", {
-    type: Sequelize.STRING,
-    allowNull: true,
-    after: "status",
-  });
+  // STATUS
+  if (!table.status) {
+    await queryInterface.addColumn("expenditures", "status", {
+      type: Sequelize.ENUM("Pending", "Reviewed", "Approved"),
+      defaultValue: "Pending",
+      after: "userId",
+    });
+  }
 
-  await queryInterface.addColumn("expenditures", "reviewedAt", {
-    type: Sequelize.DATE,
-    allowNull: true,
-    after: "reviewedBy",
-  });
+  // REVIEWED BY
+  if (!table.reviewedBy) {
+    await queryInterface.addColumn("expenditures", "reviewedBy", {
+      type: Sequelize.STRING,
+      allowNull: true,
+      after: "status",
+    });
+  }
 
-  await queryInterface.addColumn("expenditures", "reviewComment", {
-    type: Sequelize.TEXT,
-    allowNull: true,
-    after: "reviewedAt",
-  });
+  // REVIEWED AT
+  if (!table.reviewedAt) {
+    await queryInterface.addColumn("expenditures", "reviewedAt", {
+      type: Sequelize.DATE,
+      allowNull: true,
+      after: "reviewedBy",
+    });
+  }
 
-  await queryInterface.addColumn("expenditures", "approvedBy", {
-    type: Sequelize.STRING,
-    allowNull: true,
-    after: "reviewComment",
-  });
+  // REVIEW COMMENT
+  if (!table.reviewComment) {
+    await queryInterface.addColumn("expenditures", "reviewComment", {
+      type: Sequelize.TEXT,
+      allowNull: true,
+      after: "reviewedAt",
+    });
+  }
 
-  await queryInterface.addColumn("expenditures", "approvedAt", {
-    type: Sequelize.DATE,
-    allowNull: true,
-    after: "approvedBy",
-  });
+  // APPROVED BY
+  if (!table.approvedBy) {
+    await queryInterface.addColumn("expenditures", "approvedBy", {
+      type: Sequelize.STRING,
+      allowNull: true,
+      after: "reviewComment",
+    });
+  }
+
+  // APPROVED AT
+  if (!table.approvedAt) {
+    await queryInterface.addColumn("expenditures", "approvedAt", {
+      type: Sequelize.DATE,
+      allowNull: true,
+      after: "approvedBy",
+    });
+  }
 }
 
 export async function down(queryInterface, Sequelize) {

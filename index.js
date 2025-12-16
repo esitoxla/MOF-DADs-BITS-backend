@@ -10,6 +10,8 @@ import expenditureRoute from "./routes/expenditure.route.js";
 import reportRoute from "./routes/report.route.js";
 import revenueRoute from "./routes/revenue.route.js";
 import revenueReportRoute from "./routes/revenueReport.route.js";
+import loadedDataRoute from "./routes/loadedData.route.js";
+import budgetRoute from "./routes/budget.route.js";
 
 const PORT = process.env.PORT || 7005;
 
@@ -36,6 +38,8 @@ app.use("/api/expense", expenditureRoute);
 app.use("/api/reports", reportRoute);
 app.use("/api/revenue", revenueRoute);
 app.use("/api/revenueReport", revenueReportRoute);
+app.use("/api/loadedData", loadedDataRoute);
+app.use("/api/budget", budgetRoute);
 
 //middleware
 app.use(notFound);

@@ -6,6 +6,7 @@ import { organizationRetentionRate } from "../data/organizationRetentionRate.js"
  * Helper to compute retention + payment from C and rate
  */
 const computeRetentionAndPayment = (actualCollection, retentionRate) => {
+    //Convert inputs to numbers
   const C = Number(actualCollection);
   const rate = Number(retentionRate);
 
@@ -40,6 +41,8 @@ export const addRevenue = async (req, res, next) => {
       remarks,
     } = req.body;
 
+    const revenue_category = revenueCategory;
+
     const user = req.user;
     if (!user) {
       const error = new Error("Unauthorized: User not found.");
@@ -50,11 +53,11 @@ export const addRevenue = async (req, res, next) => {
     // Required fields
     const requiredFields = [
       { key: "date", value: date },
-      { key: "revenueCategory", value: revenueCategory },
+      { key: "revenueCategory", value: revenue_category },
       { key: "actualCollection", value: actualCollection },
     ];
 
-    const missing = requiredFields.filter((f) => !f.value && f.value !== 0);
+    const missing = requiredFields.filter((field) => !field.value && field.value !== 0);
     if (missing.length > 0) {
       const error = new Error(`${missing[0].key} is required`);
       error.statusCode = 400;
@@ -75,7 +78,7 @@ export const addRevenue = async (req, res, next) => {
     const existing = await Revenue.findOne({
       where: {
         date,
-        revenue_category: revenueCategory,
+        revenue_category,
         organization: user.organization,
       },
     });
@@ -99,7 +102,7 @@ export const addRevenue = async (req, res, next) => {
       organization: user.organization,
       retention_rate: retentionRate,
       date,
-      revenue_category: revenueCategory,
+      revenue_category,
       actual_collection: C,
       retention_amount: retentionAmount,
       payment_amount: paymentAmount,
@@ -111,7 +114,7 @@ export const addRevenue = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: "Revenue record added successfully",
-      data: revenue,
+      record: revenue,
     });
   } catch (error) {
     next(error);
