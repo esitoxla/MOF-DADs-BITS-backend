@@ -45,8 +45,20 @@ app.use("/api/budget", budgetRoute);
 app.use(notFound);
 app.use(errorHandler);
 
-sequelize.sync().then(() => {
-  app.listen(PORT, () => {
-    console.log(`App is listening on ${PORT}`);
-  });
-});
+const startServer = async () => {
+  try {
+    //Test the connection by trying to authenticate, Confirms the database is reachable and credentials are correct
+    await sequelize.authenticate();
+    console.log("Database connected");
+
+    app.listen(PORT, () => {
+      console.log(`App is listening on ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Startup failed:", err);
+    //The process never exits silently
+    process.exist(1);
+  }
+};
+
+startServer();
