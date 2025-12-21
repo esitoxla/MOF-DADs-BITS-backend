@@ -131,6 +131,7 @@ export function sortFundingSources(breakdown) {
 // REVENUE REPORT SECTION
 // =======================
 
+//Fetch the right revenue records from the database
 export async function getQuarterlyRevenueData({
   year,
   quarter,
@@ -146,69 +147,94 @@ export async function getQuarterlyRevenueData({
 
   const [start, end] = quarters[quarter];
 
-  let where = { date: { [Op.between]: [start, end] } };
+  const where = {
+    date: { [Op.between]: [start, end] },
+    organization:
+      user.role === "admin" && organization ? organization : user.organization,
+  };
 
-  const include = [
-    {
-      model: User,
-      attributes: [],
-      where:
-        user.role === "admin"
-          ? organization
-            ? { organization }
-            : {}
-          : { organization: user.organization },
-    },
-  ];
-
-  // GROUP revenue by category
-  const records = await Revenue.findAll({
+  return Revenue.findAll({
     where,
-    include,
     attributes: [
-      "revenue_category",
-      [fn("SUM", col("budgetProjections")), "totalBudget"],
-      [fn("SUM", col("actual_collection")), "totalCollection"],
+      [fn("LOWER", col("revenue_category")), "revenue_category"],
+      [fn("SUM", col("actual_collection")), "totalActual"],
       [fn("SUM", col("payment_amount")), "totalPayment"],
       [fn("SUM", col("retention_amount")), "totalRetention"],
       [fn("MAX", col("remarks")), "remarks"],
     ],
-    group: ["revenue_category"],
-    order: [["revenue_category", "ASC"]],
+    group: [fn("LOWER", col("revenue_category"))],
+
+    order: [[fn("LOWER", col("revenue_category")), "ASC"]],
   });
-
-  return records;
 }
 
 
-// Group revenue report data into table format
-export function groupRevenueData(records) {
-  return records.map((item) => ({
-    category: item.revenue_category,
-    projection: Number(item.dataValues.totalBudget || 0),
-    actual: Number(item.dataValues.totalCollection || 0),
-    payment: Number(item.dataValues.totalPayment || 0),
-    retention: Number(item.dataValues.totalRetention || 0),
-    // projection for December (if not stored, you can compute something or keep 0)
-    projectionDec: Number(item.dataValues.totalBudget * 0.1667 || 0),
-    remarks: item.dataValues.remarks || "",
-  }));
-}
 
-
+//Group and reshape them into rows your table understands
 //This converts DB raw data → your React table format.
+export function groupRevenueData(records) {
+  const CATEGORY_MAP = {
+    "fees/charges": "Fees/Charges",
+    fines: "Fines/Forfeitures",
+    "fines/forfeitures": "Fines/Forfeitures",
+    interests: "Interests",
+    licenses: "Licenses",
+    others: "Others",
+    "sale of goods and services": "Sale Of Goods and Services",
+  };
+
+  return records.map((row) => {
+    const rawCategory = row.revenue_category?.toLowerCase();
+
+    // C (Actual collection)
+    const actual = Number(row.dataValues.totalActual || 0);
+
+    // D (Payment to CF)
+    const payment = Number(row.dataValues.totalPayment || 0);
+
+    // E (Retention)
+    const retention = Number(row.dataValues.totalRetention || 0);
+
+    return {
+      category: CATEGORY_MAP[rawCategory] || row.revenue_category,
+
+      // B — Budget / projection (not stored yet)
+      projection: 0,
+
+      // C
+      actual,
+
+      // D
+      payment,
+
+      // E
+      retention,
+
+      // Projection at Dec (temporary business rule)
+      projectionDec: actual,
+
+      remarks: row.dataValues.remarks || "",
+    };
+  });
+}
 
 
+
+
+
+
+//Add everything up for the TOTAL row
 // Calculate totals for revenue footer row
 export function totalRevenueSummary(grouped) {
   return grouped.reduce(
-    (acc, x) => ({
-      projection: acc.projection + x.projection,
-      actual: acc.actual + x.actual,
-      payment: acc.payment + x.payment,
-      retention: acc.retention + x.retention,
-      projectionDec: acc.projectionDec + x.projectionDec,
-    }),
+    (acc, row) => {
+      acc.projection += row.projection;
+      acc.actual += row.actual;
+      acc.payment += row.payment;
+      acc.retention += row.retention;
+      acc.projectionDec += row.projectionDec;
+      return acc;
+    },
     {
       projection: 0,
       actual: 0,
