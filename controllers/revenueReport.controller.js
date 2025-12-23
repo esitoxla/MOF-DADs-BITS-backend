@@ -10,7 +10,7 @@ import {
   totalRevenueSummary,
 } from "../services/report.service.js";
 import { formatGHS } from "../utils/numberFormat.js";
-import { generateRevenuePDF } from "../utils/pdfGenerator.js";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
