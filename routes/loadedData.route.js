@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createLoadedData,
   downloadAppropriationTemplate,
+  getAllLoadedData,
   uploadExcelLoadedData,
 } from "../controllers/loadedData.controller.js";
 import { restrict } from "../middleware/restrict.js";
@@ -11,6 +12,8 @@ import uploadExcel from "../middleware/uploadExcel.js";
 const router = Router();
 
 router.post("/", protectRoutes, restrict("admin"), createLoadedData);
+
+router.get("/", protectRoutes, restrict("admin"), getAllLoadedData);
 
 router.post(
   "/upload-excel",

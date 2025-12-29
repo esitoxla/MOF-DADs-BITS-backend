@@ -70,6 +70,39 @@ export const createLoadedData = async (req, res, next) => {
   }
 };
 
+export const getAllLoadedData = async (req, res, next) => {
+  try {
+    // Optional search query
+    const { search = "" } = req.query;
+
+    // Build search filter (optional)
+    const whereClause = search
+      ? {
+          [Op.or]: [
+            { organization: { [Op.like]: `%${search}%` } },
+            { economicClassification: { [Op.like]: `%${search}%` } },
+            { sourceOfFunding: { [Op.like]: `%${search}%` } },
+            { naturalAccount: { [Op.like]: `%${search}%` } },
+          ],
+        }
+      : {};
+
+    // Fetch ALL matching records (no pagination here)
+    const loadedData = await LoadedData.findAll({
+      where: whereClause,
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      totalRecords: loadedData.length,
+      data: loadedData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 
 export const uploadExcelLoadedData = async (req, res, next) => {

@@ -21,6 +21,8 @@ router.put("/:id", protectRoutes, restrict("admin"), updateUser);
 
 router.delete("/:id", protectRoutes, restrict("admin"), deleteUser);
 
+
+
 export default router;
 
 //protectRoutes, restrict("admin")

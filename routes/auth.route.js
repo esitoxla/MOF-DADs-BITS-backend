@@ -4,6 +4,7 @@ import {
   getUser,
   login,
   logout,
+  refreshToken,
   registerUser,
 } from "../controllers/auth.controller.js";
 import { protectRoutes } from "../middleware/routesProtect.js";
@@ -18,6 +19,8 @@ router.post("/login", login);
 router.get("/me", getUser);
 
 router.post("/change-password", changePassword);
+
+router.get("/refresh", refreshToken);
 
 router.post("/logout", logout);
 
