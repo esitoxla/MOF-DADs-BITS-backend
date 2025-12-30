@@ -2,6 +2,16 @@ import LoadedData from "../models/loadedData.js";
 import ExcelJS from "exceljs";
 import User from "../models/users.js";
 
+
+const normalize = (value) => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object" && value.text) return value.text.trim();
+  return String(value).trim();
+};
+
+
+
+
 export const createLoadedData = async (req, res, next) => {
   try {
     const {
@@ -118,8 +128,8 @@ export const uploadExcelLoadedData = async (req, res, next) => {
       return res.status(400).json({ message: "Excel file is required." });
     }
 
-    const userId = req.user?.id;
-    if (!userId) {
+    const user = req.user;
+    if (!user) {
       return res.status(401).json({ message: "Unauthorized user." });
     }
 
@@ -134,23 +144,29 @@ export const uploadExcelLoadedData = async (req, res, next) => {
       if (rowNumber === 1) return;
 
       const [
-        organization,
-        economicClassification,
-        sourceOfFunding,
-        naturalAccount,
-        appropriation,
-        allotment,
+        rawOrganization,
+        rawEconomicClassification,
+        rawSourceOfFunding,
+        rawNaturalAccount,
+        rawAppropriation,
+        rawAllotment,
       ] = row.values.slice(1);
 
-      // Required fields (allotment NOT required)
+      // Normalize values
+      const organization = normalize(rawOrganization);
+      const economicClassification = normalize(rawEconomicClassification);
+      const sourceOfFunding = normalize(rawSourceOfFunding);
+      const naturalAccount = normalize(rawNaturalAccount);
+
+      // Required fields (organization REQUIRED for admin uploads)
       if (
         !organization ||
         !economicClassification ||
         !sourceOfFunding ||
         !naturalAccount ||
-        appropriation === undefined ||
-        appropriation === null ||
-        String(appropriation).trim() === ""
+        rawAppropriation === undefined ||
+        rawAppropriation === null ||
+        String(rawAppropriation).trim() === ""
       ) {
         errors.push({
           row: rowNumber,
@@ -160,7 +176,7 @@ export const uploadExcelLoadedData = async (req, res, next) => {
       }
 
       // Validate appropriation
-      const appropriationNum = Number(appropriation);
+      const appropriationNum = Number(String(rawAppropriation).trim());
       if (Number.isNaN(appropriationNum) || appropriationNum < 0) {
         errors.push({
           row: rowNumber,
@@ -169,15 +185,14 @@ export const uploadExcelLoadedData = async (req, res, next) => {
         return;
       }
 
-      // allotment OPTIONAL (safe handling)
+      // allotment OPTIONAL
       let allotmentNum = 0;
       if (
-        allotment !== undefined &&
-        allotment !== null &&
-        String(allotment).trim() !== ""
+        rawAllotment !== undefined &&
+        rawAllotment !== null &&
+        String(rawAllotment).trim() !== ""
       ) {
-        allotmentNum = Number(allotment);
-
+        allotmentNum = Number(String(rawAllotment).trim());
         if (Number.isNaN(allotmentNum) || allotmentNum < 0) {
           errors.push({
             row: rowNumber,
@@ -188,13 +203,13 @@ export const uploadExcelLoadedData = async (req, res, next) => {
       }
 
       rows.push({
-        organization,
+        organization, // ✅ from Excel
         economicClassification,
         sourceOfFunding,
         naturalAccount,
         appropriation: appropriationNum,
         allotment: allotmentNum,
-        userId,
+        userId: user.id, // who uploaded
       });
     });
 
@@ -217,6 +232,7 @@ export const uploadExcelLoadedData = async (req, res, next) => {
     next(error);
   }
 };
+
 
 
 export const downloadAppropriationTemplate = async (req, res, next) => {
