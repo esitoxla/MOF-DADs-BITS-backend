@@ -1,6 +1,6 @@
-import LoadedData from "../models/loadedData.js"
+import LoadedData from "../models/loadedData.js";
 import ExcelJS from "exceljs";
-import User from "../models/users.js"
+import User from "../models/users.js";
 
 export const createLoadedData = async (req, res, next) => {
   try {
@@ -79,7 +79,6 @@ export const createLoadedData = async (req, res, next) => {
   }
 };
 
-
 export const getAllLoadedData = async (req, res, next) => {
   try {
     // Optional search query
@@ -113,8 +112,6 @@ export const getAllLoadedData = async (req, res, next) => {
   }
 };
 
-
-
 export const uploadExcelLoadedData = async (req, res, next) => {
   try {
     if (!req.file) {
@@ -129,12 +126,11 @@ export const uploadExcelLoadedData = async (req, res, next) => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(req.file.buffer);
 
-    const sheet = workbook.worksheets[0]; // first sheet
+    const sheet = workbook.worksheets[0];
     const rows = [];
     const errors = [];
 
     sheet.eachRow((row, rowNumber) => {
-      // Skip header row
       if (rowNumber === 1) return;
 
       const [
@@ -144,16 +140,17 @@ export const uploadExcelLoadedData = async (req, res, next) => {
         naturalAccount,
         appropriation,
         allotment,
-      ] = row.values.slice(1); // remove first empty element
+      ] = row.values.slice(1);
 
-      // Validate fields
+      // Required fields (allotment NOT required)
       if (
         !organization ||
         !economicClassification ||
         !sourceOfFunding ||
         !naturalAccount ||
         appropriation === undefined ||
-        allotment === undefined
+        appropriation === null ||
+        String(appropriation).trim() === ""
       ) {
         errors.push({
           row: rowNumber,
@@ -162,15 +159,32 @@ export const uploadExcelLoadedData = async (req, res, next) => {
         return;
       }
 
+      // Validate appropriation
       const appropriationNum = Number(appropriation);
-      const allotmentNum = Number(allotment);
-
-      if (isNaN(appropriationNum) || isNaN(allotmentNum)) {
+      if (Number.isNaN(appropriationNum) || appropriationNum < 0) {
         errors.push({
           row: rowNumber,
-          error: "Appropriation and Allotment must be numbers",
+          error: "Appropriation must be a valid non-negative number",
         });
         return;
+      }
+
+      // allotment OPTIONAL (safe handling)
+      let allotmentNum = 0;
+      if (
+        allotment !== undefined &&
+        allotment !== null &&
+        String(allotment).trim() !== ""
+      ) {
+        allotmentNum = Number(allotment);
+
+        if (Number.isNaN(allotmentNum) || allotmentNum < 0) {
+          errors.push({
+            row: rowNumber,
+            error: "Allotment must be a valid non-negative number",
+          });
+          return;
+        }
       }
 
       rows.push({
@@ -194,6 +208,7 @@ export const uploadExcelLoadedData = async (req, res, next) => {
     await LoadedData.bulkCreate(rows);
 
     return res.status(201).json({
+      success: true,
       message: "Excel uploaded successfully",
       inserted: rows.length,
       errors,
@@ -202,7 +217,6 @@ export const uploadExcelLoadedData = async (req, res, next) => {
     next(error);
   }
 };
-
 
 
 export const downloadAppropriationTemplate = async (req, res, next) => {
@@ -261,8 +275,6 @@ export const downloadAppropriationTemplate = async (req, res, next) => {
   }
 };
 
-
-
 export const deleteLoadedData = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -286,8 +298,6 @@ export const deleteLoadedData = async (req, res, next) => {
     next(error);
   }
 };
-
-
 
 export const updateLoadedData = async (req, res, next) => {
   try {
