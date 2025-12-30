@@ -44,24 +44,24 @@ export const login = async (req, res, next) => {
   const { username, password } = req.body;
 
   try {
-    // Validate required fields
     if (!username || !password) {
       const error = new Error("Username and password are required");
       error.statusCode = 400;
       return next(error);
     }
 
-    // Find user by username (not just the first user)
+    // Find user
     const user = await User.scope("withPassword").findOne({
       where: { username },
     });
+
     if (!user) {
       const error = new Error("User not found");
       error.statusCode = 404;
       return next(error);
     }
 
-    //  Compare entered password with hashed password in DB
+    // Compare password
     const isMatched = await bcrypt.compare(password, user.password);
     if (!isMatched) {
       const error = new Error("Incorrect password");
@@ -69,38 +69,61 @@ export const login = async (req, res, next) => {
       return next(error);
     }
 
-    // Update last login timestamp
+    // Update last login
     user.lastLogin = new Date();
     await user.save();
 
-    //  Generate JWT token
-    const token = jwt.sign(
+    /* =========================
+       TOKENS
+    ========================== */
+
+    // Access token (short-lived)
+    const accessToken = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    // Send cookie to browser
-    res.cookie("jwt", token, {
+    // Refresh token (long-lived)
+    const refreshToken = jwt.sign(
+      { id: user.id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    /* =========================
+       COOKIES
+    ========================== */
+
+    // Access token cookie
+    res.cookie("jwt", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // only true in production
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // allows localhost testing
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
-    // Exclude password from response
+    // Refresh token cookie (THIS FIXES YOUR BUG)
+    res.cookie("refreshJwt", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Remove password before sending user
     const { password: _, ...userData } = user.get({ plain: true });
 
     res.status(200).json({
       success: true,
       message: "Login successful",
-      token,
       user: userData,
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 
 

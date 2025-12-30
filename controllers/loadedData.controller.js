@@ -10,7 +10,6 @@ export const createLoadedData = async (req, res, next) => {
       sourceOfFunding,
       naturalAccount,
       appropriation,
-      allotment,
     } = req.body;
 
     // Validate required fields
@@ -19,8 +18,7 @@ export const createLoadedData = async (req, res, next) => {
       !economicClassification ||
       !sourceOfFunding ||
       !naturalAccount ||
-      !appropriation ||
-      !allotment
+      !appropriation 
     ) {
       const error = new Error("All fields are required.");
       error.statusCode = 400;
@@ -36,11 +34,11 @@ export const createLoadedData = async (req, res, next) => {
       return next(error);
     }
 
-    if (isNaN(allotment) || allotment < 0) {
-      const error = new Error("Allotment must be a valid non-negative number.");
-      error.statusCode = 400;
-      return next(error);
-    }
+    // if (isNaN(allotment) || allotment < 0) {
+    //   const error = new Error("Allotment must be a valid non-negative number.");
+    //   error.statusCode = 400;
+    //   return next(error);
+    // }
 
     // Ensure user exists (if linked to auth)
     const userId = req.user?.id;
@@ -246,6 +244,87 @@ export const downloadAppropriationTemplate = async (req, res, next) => {
 
     await workbook.xlsx.write(res);
     res.end();
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+export const deleteLoadedData = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const record = await LoadedData.findByPk(id);
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: "Loaded data not found",
+      });
+    }
+
+    await record.destroy();
+
+    res.status(200).json({
+      success: true,
+      message: "Loaded data deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+export const updateLoadedData = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      organization,
+      economicClassification,
+      sourceOfFunding,
+      naturalAccount,
+      appropriation,
+      allotment,
+    } = req.body;
+
+    const record = await LoadedData.findByPk(id);
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: "Loaded data not found",
+      });
+    }
+
+    // Business rule: allotment must not exceed appropriation
+    if (
+      appropriation !== undefined &&
+      allotment !== undefined &&
+      Number(allotment) > Number(appropriation)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Allotment cannot be greater than appropriation",
+      });
+    }
+
+    await record.update({
+      organization,
+      economicClassification,
+      sourceOfFunding,
+      naturalAccount,
+      appropriation,
+      allotment,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Loaded data updated successfully",
+      data: record,
+    });
   } catch (error) {
     next(error);
   }

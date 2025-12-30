@@ -1,8 +1,10 @@
 import { Router } from "express";
 import {
   createLoadedData,
+  deleteLoadedData,
   downloadAppropriationTemplate,
   getAllLoadedData,
+  updateLoadedData,
   uploadExcelLoadedData,
 } from "../controllers/loadedData.controller.js";
 import { restrict } from "../middleware/restrict.js";
@@ -29,5 +31,9 @@ router.get(
   restrict("admin"),
   downloadAppropriationTemplate
 );
+
+router.delete("/:id", protectRoutes, restrict("admin"), deleteLoadedData);
+
+router.put("/:id", protectRoutes, restrict("admin"), updateLoadedData);
 
 export default router;
