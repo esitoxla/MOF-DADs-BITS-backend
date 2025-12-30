@@ -10,23 +10,25 @@ export const createLoadedData = async (req, res, next) => {
       sourceOfFunding,
       naturalAccount,
       appropriation,
+      allotment,
     } = req.body;
 
-    // Validate required fields
+    // Required fields (REMOVE allotment)
     if (
       !organization ||
       !economicClassification ||
       !sourceOfFunding ||
       !naturalAccount ||
-      !appropriation 
+      appropriation === undefined
     ) {
-      const error = new Error("All fields are required.");
+      const error = new Error("Required fields are missing.");
       error.statusCode = 400;
       return next(error);
     }
 
-    // Validate numbers
-    if (isNaN(appropriation) || appropriation < 0) {
+    // Validate appropriation
+    const appropriationValue = Number(appropriation);
+    if (Number.isNaN(appropriationValue) || appropriationValue < 0) {
       const error = new Error(
         "Appropriation must be a valid non-negative number."
       );
@@ -34,13 +36,21 @@ export const createLoadedData = async (req, res, next) => {
       return next(error);
     }
 
-    // if (isNaN(allotment) || allotment < 0) {
-    //   const error = new Error("Allotment must be a valid non-negative number.");
-    //   error.statusCode = 400;
-    //   return next(error);
-    // }
+    // Validate allotment ONLY if provided
+    let allotmentValue = 0;
+    if (allotment !== undefined && allotment !== "") {
+      allotmentValue = Number(allotment);
 
-    // Ensure user exists (if linked to auth)
+      if (Number.isNaN(allotmentValue) || allotmentValue < 0) {
+        const error = new Error(
+          "Allotment must be a valid non-negative number."
+        );
+        error.statusCode = 400;
+        return next(error);
+      }
+    }
+
+    // Auth check
     const userId = req.user?.id;
     if (!userId) {
       const error = new Error("Unauthorized: User not found.");
@@ -54,12 +64,13 @@ export const createLoadedData = async (req, res, next) => {
       economicClassification,
       sourceOfFunding,
       naturalAccount,
-      appropriation,
-      allotment,
+      appropriation: appropriationValue,
+      allotment: allotmentValue, // DEFAULTS TO 0
       userId,
     });
 
     return res.status(201).json({
+      success: true,
       message: "Data saved successfully",
       data: newData,
     });
@@ -67,6 +78,7 @@ export const createLoadedData = async (req, res, next) => {
     next(err);
   }
 };
+
 
 export const getAllLoadedData = async (req, res, next) => {
   try {
@@ -215,9 +227,9 @@ export const downloadAppropriationTemplate = async (req, res, next) => {
     // Add a sample row for guidance
     sheet.addRow({
       organization: "MOF",
-      economicClassification: "Goods",
-      sourceOfFunding: "GoG",
-      naturalAccount: "123456",
+      economicClassification: "Use and Goods and Services",
+      sourceOfFunding: "GOG",
+      naturalAccount: "123456-Transportation",
       appropriation: 500000.0,
       allotment: 200000.0,
     });
