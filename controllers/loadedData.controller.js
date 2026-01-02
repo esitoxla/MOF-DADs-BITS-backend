@@ -2,7 +2,7 @@ import LoadedData from "../models/loadedData.js";
 import ExcelJS from "exceljs";
 import User from "../models/users.js";
 
-
+//takes any value coming from Excel and turns it into a clean, trimmed string (or an empty string if it’s missing
 const normalize = (value) => {
   if (value === null || value === undefined) return "";
   if (typeof value === "object" && value.text) return value.text.trim();
@@ -89,6 +89,9 @@ export const createLoadedData = async (req, res, next) => {
   }
 };
 
+
+
+
 export const getAllLoadedData = async (req, res, next) => {
   try {
     // Optional search query
@@ -122,6 +125,9 @@ export const getAllLoadedData = async (req, res, next) => {
   }
 };
 
+
+
+//THIS IS FOR BULK UPLOAD
 export const uploadExcelLoadedData = async (req, res, next) => {
   try {
     if (!req.file) {
@@ -203,7 +209,7 @@ export const uploadExcelLoadedData = async (req, res, next) => {
       }
 
       rows.push({
-        organization, // ✅ from Excel
+        organization, // from Excel
         economicClassification,
         sourceOfFunding,
         naturalAccount,
@@ -291,6 +297,7 @@ export const downloadAppropriationTemplate = async (req, res, next) => {
   }
 };
 
+
 export const deleteLoadedData = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -314,6 +321,7 @@ export const deleteLoadedData = async (req, res, next) => {
     next(error);
   }
 };
+
 
 export const updateLoadedData = async (req, res, next) => {
   try {
