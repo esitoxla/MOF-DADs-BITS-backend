@@ -85,18 +85,38 @@ export const getBudgetValues = async (req, res, next) => {
       });
     }
 
-    const { appropriation, allotment } = allocation;
+    const appropriation = Number(allocation.appropriation || 0);
+    const allotment = Number(allocation.allotment || 0);
 
-    const totalReleases = await BudgetExpenditure.sum("releases", {
-      where: {
-        organization: user.organization,
-        economicClassification: eco.trim(),
-        sourceOfFunding: fund.trim(),
-        naturalAccount: account.trim(),
-      },
-    });
+    /* =========================
+       NO ALLOTMENT CASE (IGF / DPF)
+       Driven purely by data
+    ========================== */
+    if (allotment === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          appropriation,
+          allotment: 0,
+          balance: 0,
+        },
+      });
+    }
 
-    const balance = allotment - (totalReleases || 0);
+    /* =========================
+       NORMAL (HAS ALLOTMENT)
+    ========================== */
+    const totalReleases =
+      (await BudgetExpenditure.sum("releases", {
+        where: {
+          organization: user.organization,
+          economicClassification: eco.trim(),
+          sourceOfFunding: fund.trim(),
+          naturalAccount: account.trim(),
+        },
+      })) || 0;
+
+    const balance = allotment - totalReleases;
 
     res.status(200).json({
       success: true,
@@ -110,5 +130,6 @@ export const getBudgetValues = async (req, res, next) => {
     next(err);
   }
 };
+
 
 

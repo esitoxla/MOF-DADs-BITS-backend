@@ -1,7 +1,11 @@
 import BudgetExpenditure from "../models/expenditure.model.js";
 import User from "../models/users.js";
+import LoadedData from "../models/loadedData.js";
+import sequelize from "../config/database.js";
 
 export const addExpenditure = async (req, res, next) => {
+  const t = await sequelize.transaction();
+
   try {
     const {
       activity,
@@ -10,23 +14,21 @@ export const addExpenditure = async (req, res, next) => {
       sourceOfFunding,
       naturalAccount,
       description,
-      appropriation,
-      allotment,
-      allotmentBalance,
       releases,
       actualExpenditure,
       actualPayment,
     } = req.body;
 
-    // Ensure user info is available
     const user = req.user;
     if (!user) {
       const error = new Error("Unauthorized: User not found.");
       error.statusCode = 401;
-      return next(error);
+      throw error;
     }
 
-    // Check for required fields
+    /* =========================
+       REQUIRED FIELDS CHECK
+    ========================== */
     const requiredFields = [
       { key: "activity", value: activity },
       { key: "date", value: date },
@@ -36,44 +38,118 @@ export const addExpenditure = async (req, res, next) => {
       { key: "description", value: description },
     ];
 
-    const missing = requiredFields.filter((f) => !f.value);
-    if (missing.length > 0) {
-      const error = new Error(`${missing[0].key} is required`);
+    const missing = requiredFields.find((f) => !f.value);
+    if (missing) {
+      const error = new Error(`${missing.key} is required`);
       error.statusCode = 400;
-      return next(error);
+      throw error;
     }
 
-    // Prevent duplicate activity on same date
+    /* =========================
+       DUPLICATE CHECK
+    ========================== */
     const existing = await BudgetExpenditure.findOne({
       where: { activity, date },
+      transaction: t,
     });
+
     if (existing) {
       const error = new Error(
         "Record already exists for this activity and date"
       );
       error.statusCode = 400;
-      return next(error);
+      throw error;
     }
 
-    // Create expenditure record
-    const expenditure = await BudgetExpenditure.create({
-      activity,
-      date,
-      economicClassification,
-      sourceOfFunding,
-      naturalAccount,
-      description,
-      appropriation: appropriation ?? null,
-      allotment: allotment ?? null,
-      allotmentBalance: allotmentBalance ?? null,
-      releases: releases ?? null,
-      actualExpenditure: actualExpenditure ?? null,
-      actualPayment: actualPayment ?? null,
-
-      // Automatically attach logged-in user details
-      userId: user.id,
-      organization: user.organization, // optional, if your model has this
+    /* =========================
+       FETCH ALLOCATION
+    ========================== */
+    const allocation = await LoadedData.findOne({
+      where: {
+        organization: user.organization,
+        economicClassification,
+        sourceOfFunding,
+        naturalAccount,
+      },
+      transaction: t,
     });
+
+    if (!allocation) {
+      const error = new Error("No allocation found for this budget line");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const appropriation = Number(allocation.appropriation || 0);
+    const allotment = Number(allocation.allotment || 0);
+    const currentRelease = Number(releases || 0);
+
+    let allotmentBalance = 0;
+    const hasAllotment = allotment > 0;
+
+    /* =========================
+   BALANCE LOGIC (DATA-DRIVEN)
+========================== */
+    if (!hasAllotment) {
+      // NO ALLOTMENT (IGF / DPF by data)
+      if (currentRelease > appropriation) {
+        const error = new Error(
+          "Releases cannot exceed appropriation when there is no allotment"
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+
+      allotmentBalance = 0;
+    } else {
+      // HAS ALLOTMENT (GOG etc.)
+      const previousReleases =
+        (await BudgetExpenditure.sum("releases", {
+          where: {
+            organization: user.organization,
+            economicClassification,
+            sourceOfFunding,
+            naturalAccount,
+          },
+          transaction: t,
+        })) || 0;
+
+      allotmentBalance = allotment - (previousReleases + currentRelease);
+
+      if (allotmentBalance < 0) {
+        const error = new Error("Releases exceed available allotment balance");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+
+    /* =========================
+       CREATE RECORD
+    ========================== */
+    const expenditure = await BudgetExpenditure.create(
+      {
+        activity,
+        date,
+        economicClassification,
+        sourceOfFunding,
+        naturalAccount,
+        description,
+
+        appropriation,
+        allotment,
+        allotmentBalance,
+        releases: currentRelease,
+        actualExpenditure: actualExpenditure ?? null,
+        actualPayment: actualPayment ?? null,
+
+        userId: user.id,
+        organization: user.organization,
+      },
+      { transaction: t }
+    );
+
+    await t.commit();
 
     res.status(201).json({
       success: true,
@@ -81,6 +157,7 @@ export const addExpenditure = async (req, res, next) => {
       expenditure,
     });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };
