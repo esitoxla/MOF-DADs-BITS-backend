@@ -10,6 +10,7 @@ import {
   totalRevenueSummary,
 } from "../services/report.service.js";
 import { formatGHS } from "../utils/numberFormat.js";
+import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,14 +29,30 @@ export const getQuarterlyRevenueReport = async (req, res, next) => {
         .json({ success: false, message: "Year and quarter are required!" });
     }
 
-    const user = await User.findByPk(req.user.id);
+   const user = await User.findByPk(req.user.id);
+
+   if (user.role !== "admin" && organization === "ALL") {
+     return res.status(403).json({
+       success: false,
+       message: "You are not allowed to access all organizations",
+     });
+   }
+
+
+    const { organization: resolvedOrg } = resolveOrganizationScope({
+      user,
+      organization,
+    });
 
     const raw = await getQuarterlyRevenueData({
       year,
       quarter,
-      organization,
+      organization: resolvedOrg, // null = ALL
       user,
     });
+
+    
+
 
     const grouped = groupRevenueData(raw);
     const totals = totalRevenueSummary(grouped);
@@ -44,7 +61,7 @@ export const getQuarterlyRevenueReport = async (req, res, next) => {
       success: true,
       year,
       quarter,
-      organization: organization || user.organization,
+      organization: organization === "ALL" ? "ALL" : resolvedOrg,
       records: grouped,
       totals,
     });
@@ -67,16 +84,31 @@ export const exportQuarterlyRevenueExcel = async (req, res, next) => {
         .status(400)
         .json({ success: false, message: "Year and quarter required" });
 
+
     //Get logged-in user
     const user = await User.findByPk(req.user.id);
 
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
+
     //Fetch raw revenue data from the report service
+    const { organization: resolvedOrg } = resolveOrganizationScope({
+      user,
+      organization,
+    });
+
     const raw = await getQuarterlyRevenueData({
       year,
       quarter,
-      organization,
+      organization: resolvedOrg, // null = ALL
       user,
     });
+
 
     //Shape data into report rows
     const grouped = groupRevenueData(raw);
@@ -97,7 +129,7 @@ export const exportQuarterlyRevenueExcel = async (req, res, next) => {
         header: "PROJECTION",
         key: "projection",
         width: 18,
-        style: { numFmt: GHS_+FORMAT },
+        style: { numFmt: GHS_FORMAT },
       },
       {
         header: "ACTUAL COLLECTION",
@@ -201,10 +233,23 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
 
     const user = await User.findByPk(req.user.id);
 
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
+
+    const { organization: resolvedOrg } = resolveOrganizationScope({
+      user,
+      organization,
+    });
+
     const raw = await getQuarterlyRevenueData({
       year,
       quarter,
-      organization,
+      organization: resolvedOrg, // null = ALL
       user,
     });
 

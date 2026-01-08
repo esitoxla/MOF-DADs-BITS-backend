@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { formatGHS } from "./numberFormat.js";
+import { getQuarterPeriod } from "./quarterPeriod.js";
 
 export const generateRevenuePDF = ({
   grouped,
@@ -14,6 +15,8 @@ export const generateRevenuePDF = ({
     size: "A4",
     margins: { top: 50, bottom: 50, left: 40, right: 40 },
   });
+
+  const period = getQuarterPeriod(year, quarter);
 
   doc.pipe(res);
 
@@ -63,10 +66,13 @@ export const generateRevenuePDF = ({
   /* =========================
      TABLE
   ========================== */
-  drawRevenueTable(doc, grouped, totals);
+  drawRevenueTable(doc, grouped, totals, period);
 
   doc.end();
 };
+
+
+
 
 /* ======================================================
    TABLE
@@ -77,17 +83,40 @@ const drawRevenueTable = (doc, grouped, totals) => {
 
   const columns = [
     { key: "category", label: "REVENUE CATEGORIES", width: 100, align: "left" },
-    { key: "projectionBudget", label: "PROJECTION / BUDGET\nB", width: 70 },
+
     {
-      key: "actualCollection",
-      label: "ACTUAL COLLECTION\nC = D + E",
+      key: "projectionBudget",
+      label: `${period.year} PROJECTION / BUDGET\nB`,
       width: 70,
     },
-    { key: "paymentIntoCF", label: "PAYMENT INTO CF\nD = C - E", width: 70 },
-    { key: "retention", label: "RETENTION\nE = C - D", width: 70 },
-    { key: "projectionAtDec", label: "PROJECTION AT\n31 DEC", width: 70 },
+
+    {
+      key: "actualCollection",
+      label: `ACTUAL COLLECTION\nAS AT END ${period.endMonthName} ${period.year}\nC = D + E`,
+      width: 70,
+    },
+
+    {
+      key: "paymentIntoCF",
+      label: `PAYMENT INTO CF\nAS AT END ${period.endMonthName} ${period.year}\nD = C - E`,
+      width: 70,
+    },
+
+    {
+      key: "retention",
+      label: `RETENTION\nAS AT END ${period.endMonthName} ${period.year}\nE = C - D`,
+      width: 70,
+    },
+
+    {
+      key: "projectionAtDec",
+      label: `PROJECTION AT\n31 DEC ${period.year}`,
+      width: 70,
+    },
+
     { key: "remarks", label: "REMARKS", width: 80, align: "left" },
   ];
+
 
   // HEADER
   drawHeaderRow(doc, y, columns);

@@ -6,12 +6,22 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { getQuarterlyReportData, groupEconomicData, sortByEconomicOrder, sortFundingSources } from "../services/report.service.js";
 import { generateQuarterlyPDF } from "../utils/pdfGenerator.js";
+import { getQuarterPeriod } from "../utils/quarterPeriod.js";
+import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
 
 
 export const getQuarterlyReport = async (req, res, next) => {
   try {
     const { year, quarter, organization, sourceOfFunding = "ALL" } = req.query;
     const user = await User.findByPk(req.user.id);
+
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
 
     if (!year || !quarter) {
       return next(new Error("Year and quarter are required."));
@@ -35,18 +45,20 @@ export const getQuarterlyReport = async (req, res, next) => {
       where.sourceOfFunding = sourceOfFunding; // IMPORTANT
     }
 
+     const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
+       user,
+       organization,
+     });
+
     const include = [
       {
         model: User,
         attributes: [],
-        where:
-          user.role === "admin"
-            ? organization
-              ? { organization }
-              : {}
-            : { organization: user.organization },
+        ...(resolvedOrg && { where: { organization: resolvedOrg } }),
       },
     ];
+
+
 
     // ALWAYS group by both (fix)
     const groupBy = ["economicClassification", "sourceOfFunding"];
@@ -91,9 +103,10 @@ export const getQuarterlyReport = async (req, res, next) => {
       }
     );
 
+   
     return res.json({
       success: true,
-      organization: organization || user.organization,
+      organization: isAll ? "ALL" : resolvedOrg,
       sourceOfFunding,
       year,
       quarter,
@@ -113,6 +126,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
   try {
     const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
 
+    // Basic validation
     if (!year || !quarter) {
       return res
         .status(400)
@@ -123,8 +137,18 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       return res.status(401).json({ message: "User not logged in!" });
     }
 
+    // Resolve user first (IMPORTANT)
     const user = await User.findByPk(req.user.id);
 
+    // Security: non-admins cannot request ALL
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
+    // Quarter ranges
     const quarters = {
       1: [`${year}-01-01`, `${year}-03-31`],
       2: [`${year}-04-01`, `${year}-06-30`],
@@ -134,30 +158,31 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
 
     const [start, end] = quarters[quarter];
 
-    let where = {
+    // WHERE clause
+    const where = {
       date: { [Op.between]: [start, end] },
     };
 
-    let groupBy = ["economicClassification"];
-
     if (sourceOfFunding !== "ALL") {
       where.sourceOfFunding = sourceOfFunding;
-    } else {
-      groupBy.push("sourceOfFunding");
     }
+
+    // Resolve organization scope (admin / ALL / user)
+    const { organization: orgScope } = resolveOrganizationScope({
+      user,
+      organization,
+    });
 
     const include = [
       {
         model: User,
         attributes: [],
-        where:
-          user.role === "admin"
-            ? organization
-              ? { organization }
-              : {}
-            : { organization: user.organization },
+        ...(orgScope && { where: { organization: orgScope } }),
       },
     ];
+
+    // Always group consistently
+    const groupBy = ["economicClassification", "sourceOfFunding"];
 
     const report = await BudgetExpenditure.findAll({
       where,
@@ -173,16 +198,14 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       group: groupBy,
       order: [
         ["economicClassification", "ASC"],
-        ...(sourceOfFunding === "ALL" ? [["sourceOfFunding", "ASC"]] : []),
+        ["sourceOfFunding", "ASC"],
       ],
     });
 
+    // Group & sort
     let grouped = groupEconomicData(report, sourceOfFunding);
-
-    // Sort economic items
     grouped = sortByEconomicOrder(grouped);
 
-    // Sort breakdown only when ALL sources are shown
     if (sourceOfFunding === "ALL") {
       grouped = grouped.map((item) => ({
         ...item,
@@ -190,7 +213,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       }));
     }
 
-    // Compute totals
+    // Totals
     const totals = grouped.reduce(
       (acc, x) => ({
         totalBudget: acc.totalBudget + x.totalBudget,
@@ -208,28 +231,30 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       }
     );
 
-    // Create workbook
+    // Workbook
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Quarterly Report", {
       views: [{ state: "frozen", ySplit: 1 }],
     });
 
+    const period = getQuarterPeriod(year, quarter);
+
     sheet.addRow([
-      "Summary of Budget Performance by Economic Classification",
+      "Summary of Budget Performance by Economic Classification and Funding",
     ]).font = { bold: true, size: 14 };
 
     const header = [
       "EXPENDITURE ITEM",
-      "2025 APPROVED BUDGET / APPROPRIATION",
-      "AMOUNT RELEASED AS AT END AUG 2025",
-      "ACTUAL EXPENDITURE AS AT END AUG 2025",
-      "ACTUAL PAYMENTS AS AT END AUG 2025",
-      "PROJECTIONS AS AT 31 DEC 2025",
+      `${period.year} APPROVED BUDGET / APPROPRIATION`,
+      `AMOUNT RELEASED AS AT END ${period.endMonthName} ${period.year}`,
+      `ACTUAL EXPENDITURE AS AT END ${period.endMonthName} ${period.year}`,
+      `ACTUAL PAYMENTS AS AT END ${period.endMonthName} ${period.year}`,
+      `PROJECTIONS AS AT 31 DEC ${period.year}`,
     ];
 
     sheet.addRow(header).font = { bold: true };
 
-    // Write rows
+    // Rows
     grouped.forEach((item) => {
       const parent = sheet.addRow([
         item.title,
@@ -256,7 +281,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       });
     });
 
-    const t = sheet.addRow([
+    const totalRow = sheet.addRow([
       "TOTAL",
       totals.totalBudget,
       totals.amountReleased,
@@ -265,7 +290,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       totals.projection,
     ]);
 
-    t.font = { bold: true, color: { argb: "FF166534" } };
+    totalRow.font = { bold: true, color: { argb: "FF166534" } };
 
     sheet.columns = [
       { width: 35 },
@@ -295,6 +320,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
 
 
 
+
 //pdf export
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -303,28 +329,52 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
   try {
     const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
 
-    if (!year || !quarter) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Year and quarter are required" });
+    // Validate auth
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not logged in",
+      });
     }
 
+    // Validate required params
+    if (!year || !quarter) {
+      return res.status(400).json({
+        success: false,
+        message: "Year and quarter are required",
+      });
+    }
+
+    // Resolve user FIRST (important)
     const user = await User.findByPk(req.user.id);
 
+    // Security: non-admins cannot request ALL
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
+    // Resolve organization scope
+    const { organization: resolvedOrg } = resolveOrganizationScope({
+      user,
+      organization,
+    });
+
+    // Fetch report data
     const report = await getQuarterlyReportData({
       year,
       quarter,
       sourceOfFunding,
-      organization,
+      organization: resolvedOrg, // null = ALL
       user,
     });
 
+    // Group & sort
     let grouped = groupEconomicData(report, sourceOfFunding);
-
-    // Sort economic items
     grouped = sortByEconomicOrder(grouped);
 
-    // Sort breakdown only when ALL sources are shown
     if (sourceOfFunding === "ALL") {
       grouped = grouped.map((item) => ({
         ...item,
@@ -332,7 +382,7 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
       }));
     }
 
-    // You probably already have totals somewhere; if not, compute here:
+    // Totals
     const totals = grouped.reduce(
       (acc, x) => ({
         totalBudget: acc.totalBudget + x.totalBudget,
@@ -352,14 +402,14 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
 
     const logoPath = path.join(__dirname, "../assets/logo.jpeg");
 
-    // Set headers **here** (once), BEFORE streaming
+    // Set headers BEFORE streaming
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="Quarterly_Report_${year}_Q${quarter}.pdf"`
     );
 
-    // Now generate the PDF. Do NOT set headers inside this function.
+    // Generate PDF (streaming)
     generateQuarterlyPDF({
       grouped,
       totals,
@@ -372,10 +422,10 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
     });
   } catch (error) {
     console.error("PDF export error:", error);
-    // If headers were already sent (stream started), don't try to send JSON
     if (res.headersSent) return;
     next(error);
   }
 };
+
 
 

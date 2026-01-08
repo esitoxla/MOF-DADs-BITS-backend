@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import path from "path";
+import { getQuarterPeriod } from "./quarterPeriod.js";
 
 export function generateQuarterlyPDF({
   grouped,
@@ -11,6 +12,9 @@ export function generateQuarterlyPDF({
   res, // <-- MUST BE HERE
 }) {
   const doc = new PDFDocument({ size: "A4", margin: 40 });
+
+  const period = getQuarterPeriod(year, quarter);
+
 
   // Compute totals from grouped data
   const totals = grouped.reduce(
@@ -129,12 +133,13 @@ export function generateQuarterlyPDF({
   function drawTableHeaders(y) {
     const headers = [
       "EXPENDITURE ITEM",
-      "2025 APPROVED\nBUDGET / APPROPRIATION",
-      "AMOUNT RELEASED\nAS AT END AUG 2025",
-      "ACTUAL EXPENDITURE\nAS AT END AUG 2025",
-      "ACTUAL PAYMENTS\nAS AT END AUG 2025",
-      "PROJECTIONS AS\nAT 31 DEC 2025",
+      `${period.year} APPROVED\nBUDGET / APPROPRIATION`,
+      `AMOUNT RELEASED\nAS AT END ${period.endMonthName} ${period.year}`,
+      `ACTUAL EXPENDITURE\nAS AT END ${period.endMonthName} ${period.year}`,
+      `ACTUAL PAYMENTS\nAS AT END ${period.endMonthName} ${period.year}`,
+      `PROJECTIONS AS\nAT 31 DEC ${period.year}`,
     ];
+
 
     let x = tableStartX;
     const headerHeight = 60; // <--- increase height here

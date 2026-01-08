@@ -84,44 +84,62 @@ export const addExpenditure = async (req, res, next) => {
     const allotment = Number(allocation.allotment || 0);
     const currentRelease = Number(releases || 0);
 
-    let allotmentBalance = 0;
-    const hasAllotment = allotment > 0;
+   const isGoodsAndServicesGOG =
+     economicClassification === "Use of Goods and Services" &&
+     sourceOfFunding === "GOG";
+
 
     /* =========================
    BALANCE LOGIC (DATA-DRIVEN)
 ========================== */
-    if (!hasAllotment) {
-      // NO ALLOTMENT (IGF / DPF by data)
-      if (currentRelease > appropriation) {
-        const error = new Error(
-          "Releases cannot exceed appropriation when there is no allotment"
-        );
-        error.statusCode = 400;
-        throw error;
-      }
+   let allotmentBalance = 0;
+   const hasAllotment = allotment > 0;
 
-      allotmentBalance = 0;
-    } else {
-      // HAS ALLOTMENT (GOG etc.)
-      const previousReleases =
-        (await BudgetExpenditure.sum("releases", {
-          where: {
-            organization: user.organization,
-            economicClassification,
-            sourceOfFunding,
-            naturalAccount,
-          },
-          transaction: t,
-        })) || 0;
+   if (!hasAllotment) {
+     if (currentRelease > appropriation) {
+       throw new Error(
+         "Releases cannot exceed appropriation when there is no allotment"
+       );
+     }
+     allotmentBalance = 0;
+   } else if (isGoodsAndServicesGOG) {
+     const previousActualExpenditure =
+       (await BudgetExpenditure.sum("actualExpenditure", {
+         where: {
+           organization: user.organization,
+           economicClassification,
+           sourceOfFunding,
+           naturalAccount,
+         },
+         transaction: t,
+       })) || 0;
 
-      allotmentBalance = allotment - (previousReleases + currentRelease);
+     const currentActual = Number(actualExpenditure || 0);
 
-      if (allotmentBalance < 0) {
-        const error = new Error("Releases exceed available allotment balance");
-        error.statusCode = 400;
-        throw error;
-      }
-    }
+     allotmentBalance = allotment - (previousActualExpenditure + currentActual);
+
+     if (allotmentBalance < 0) {
+       throw new Error("Actual expenditure exceeds available allotment");
+     }
+   } else {
+     const previousReleases =
+       (await BudgetExpenditure.sum("releases", {
+         where: {
+           organization: user.organization,
+           economicClassification,
+           sourceOfFunding,
+           naturalAccount,
+         },
+         transaction: t,
+       })) || 0;
+
+     allotmentBalance = allotment - (previousReleases + currentRelease);
+
+     if (allotmentBalance < 0) {
+       throw new Error("Releases exceed available allotment balance");
+     }
+   }
+
 
 
     /* =========================

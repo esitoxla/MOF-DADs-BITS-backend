@@ -149,8 +149,7 @@ export async function getQuarterlyRevenueData({
 
   const where = {
     date: { [Op.between]: [start, end] },
-    organization:
-      user.role === "admin" && organization ? organization : user.organization,
+    ...(organization && { organization }), // null = ALL
   };
 
   return Revenue.findAll({
@@ -163,10 +162,10 @@ export async function getQuarterlyRevenueData({
       [fn("MAX", col("remarks")), "remarks"],
     ],
     group: [fn("LOWER", col("revenue_category"))],
-
     order: [[fn("LOWER", col("revenue_category")), "ASC"]],
   });
 }
+
 
 
 

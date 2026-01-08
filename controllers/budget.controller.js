@@ -56,10 +56,7 @@ export const getBudgetValues = async (req, res, next) => {
     const user = req.user;
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
     if (!eco || !fund || !account) {
@@ -88,23 +85,41 @@ export const getBudgetValues = async (req, res, next) => {
     const appropriation = Number(allocation.appropriation || 0);
     const allotment = Number(allocation.allotment || 0);
 
-    /* =========================
-       NO ALLOTMENT CASE (IGF / DPF)
-       Driven purely by data
-    ========================== */
+    // NO ALLOTMENT (IGF / DPF)
     if (allotment === 0) {
+      return res.status(200).json({
+        success: true,
+        data: { appropriation, allotment: 0, balance: 0 },
+      });
+    }
+
+    /* =========================
+       USE OF GOODS & SERVICES + GOG
+    ========================== */
+    if (eco === "Use of Goods and Services" && fund === "GOG") {
+      const totalActualExpenditure =
+        (await BudgetExpenditure.sum("actualExpenditure", {
+          where: {
+            organization: user.organization,
+            economicClassification: eco.trim(),
+            sourceOfFunding: fund.trim(),
+            naturalAccount: account.trim(),
+          },
+        })) || 0;
+
       return res.status(200).json({
         success: true,
         data: {
           appropriation,
-          allotment: 0,
-          balance: 0,
+          allotment,
+          balance: allotment - totalActualExpenditure,
+          previousActualExpenditure: totalActualExpenditure,
         },
       });
     }
 
     /* =========================
-       NORMAL (HAS ALLOTMENT)
+       DEFAULT (release-based)
     ========================== */
     const totalReleases =
       (await BudgetExpenditure.sum("releases", {
@@ -116,20 +131,19 @@ export const getBudgetValues = async (req, res, next) => {
         },
       })) || 0;
 
-    const balance = allotment - totalReleases;
-
     res.status(200).json({
       success: true,
       data: {
         appropriation,
         allotment,
-        balance,
+        balance: allotment - totalReleases,
       },
     });
   } catch (err) {
     next(err);
   }
 };
+
 
 
 
