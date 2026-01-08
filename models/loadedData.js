@@ -39,6 +39,10 @@ const LoadedData = sequelize.define(
       validate: {
         min: 0,
       },
+      year: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
     },
   },
   { timestamps: true }

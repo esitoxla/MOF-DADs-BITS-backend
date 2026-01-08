@@ -8,6 +8,7 @@ import { getQuarterlyReportData, groupEconomicData, sortByEconomicOrder, sortFun
 import { generateQuarterlyPDF } from "../utils/pdfGenerator.js";
 import { getQuarterPeriod } from "../utils/quarterPeriod.js";
 import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
+import { getAppropriationTotals } from "../services/appropriation.service.js";
 
 
 export const getQuarterlyReport = async (req, res, next) => {
@@ -22,95 +23,71 @@ export const getQuarterlyReport = async (req, res, next) => {
       });
     }
 
-
     if (!year || !quarter) {
       return next(new Error("Year and quarter are required."));
     }
-
-    // Quarter ranges
-    const quarters = {
-      1: [`${year}-01-01`, `${year}-03-31`],
-      2: [`${year}-04-01`, `${year}-06-30`],
-      3: [`${year}-07-01`, `${year}-09-30`],
-      4: [`${year}-10-01`, `${year}-12-31`],
-    };
-    const [quarterStart, quarterEnd] = quarters[quarter];
-
-    // WHERE clause
-    let where = {
-      date: { [Op.between]: [quarterStart, quarterEnd] },
-    };
-
-    if (sourceOfFunding !== "ALL") {
-      where.sourceOfFunding = sourceOfFunding; // IMPORTANT
-    }
-
-     const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
-       user,
-       organization,
-     });
-
-    const include = [
-      {
-        model: User,
-        attributes: [],
-        ...(resolvedOrg && { where: { organization: resolvedOrg } }),
-      },
-    ];
-
-
-
-    // ALWAYS group by both (fix)
-    const groupBy = ["economicClassification", "sourceOfFunding"];
-
-    // ALWAYS select both fields (fix)
-    const attributes = [
-      "economicClassification",
-      "sourceOfFunding",
-      [fn("SUM", col("appropriation")), "totalAppropriation"],
-      [fn("SUM", col("releases")), "totalReleases"],
-      [fn("SUM", col("actualExpenditure")), "totalExpenditure"],
-      [fn("SUM", col("actualPayment")), "totalPayment"],
-    ];
-
-    const report = await BudgetExpenditure.findAll({
-      where,
-      include,
-      attributes,
-      group: groupBy,
-      order: [
-        ["economicClassification", "ASC"],
-        ["sourceOfFunding", "ASC"],
-      ],
+    // 1️⃣ Resolve organization scope
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
+      user,
+      organization,
     });
 
-    // Compute totals
-    const totals = report.reduce(
-      (acc, r) => ({
-        totalAppropriation:
-          acc.totalAppropriation + Number(r.dataValues.totalAppropriation || 0),
-        totalReleases:
-          acc.totalReleases + Number(r.dataValues.totalReleases || 0),
-        totalExpenditure:
-          acc.totalExpenditure + Number(r.dataValues.totalExpenditure || 0),
-        totalPayment: acc.totalPayment + Number(r.dataValues.totalPayment || 0),
-      }),
-      {
-        totalAppropriation: 0,
-        totalReleases: 0,
-        totalExpenditure: 0,
-        totalPayment: 0,
-      }
-    );
+    // 2️⃣ Fetch EXECUTION data (releases, expenditure, payment)
+    const execution = await getQuarterlyReportData({
+      year,
+      quarter,
+      sourceOfFunding,
+      organization: resolvedOrg,
+      user,
+    });
 
-   
+    // 3️⃣ Fetch APPROPRIATION data (approved budget)
+    const appropriation = await getAppropriationTotals({
+      organization: isAll ? "ALL" : resolvedOrg,
+      user,
+      year,
+    });
+
+    // 4️⃣ Merge + group (single source of truth)
+    let grouped = groupEconomicData(execution, appropriation, sourceOfFunding);
+
+    // 5️⃣ Sort economic classifications
+    grouped = sortByEconomicOrder(grouped);
+
+    //  Sort funding sources if ALL
+    if (sourceOfFunding === "ALL") {
+      grouped = grouped.map((item) => ({
+        ...item,
+        breakdown: sortFundingSources(item.breakdown),
+      }));
+    }
+
+    // Compute totals
+   const totals = grouped.reduce(
+     (acc, item) => ({
+       totalBudget: acc.totalBudget + item.totalBudget,
+       amountReleased: acc.amountReleased + item.amountReleased,
+       actualExpenditure: acc.actualExpenditure + item.actualExpenditure,
+       actualPayments: acc.actualPayments + item.actualPayments,
+       projection: 0,
+     }),
+     {
+       totalBudget: 0,
+       amountReleased: 0,
+       actualExpenditure: 0,
+       actualPayments: 0,
+       projection: 0,
+     }
+   );
+
+
     return res.json({
       success: true,
       organization: isAll ? "ALL" : resolvedOrg,
       sourceOfFunding,
       year,
       quarter,
-      report,
+      grouped,
       totals,
     });
   } catch (error) {
