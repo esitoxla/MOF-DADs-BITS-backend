@@ -5,15 +5,6 @@ import { Op, fn, col } from "sequelize";
 
 
 
-
-const FUNDING_RULES = {
-  "Compensation of Employees": ["GoG", "IGF"],
-  "Use of Goods and Services": ["GoG", "IGF", "DPF"],
-  "Capital Expenditure": ["GoG", "IGF", "DPF"],
-};
-
-
-
 export async function getQuarterlyReportData({
   year,
   quarter,
