@@ -3,18 +3,18 @@ import path from "path";
 import { getQuarterPeriod } from "./quarterPeriod.js";
 
 export function generateQuarterlyPDF({
-  grouped,
+  grouped, //already grouped & final report rows
   year,
   quarter,
   sourceOfFunding,
-  user,
+  user, //for header display (DADs)
   logoPath,
-  res, // <-- MUST BE HERE
+  res, // writable HTTP stream
 }) {
+  //PDF document initialization
   const doc = new PDFDocument({ size: "A4", margin: 40 });
 
   const period = getQuarterPeriod(year, quarter);
-
 
   // Compute totals from grouped data
   const totals = grouped.reduce(
@@ -35,6 +35,7 @@ export function generateQuarterlyPDF({
   );
 
   // The controller already set them. Just stream the PDF.
+  //Streams the PDF directly to the HTTP response
   doc.pipe(res);
 
   // -----------------------------
@@ -57,6 +58,7 @@ export function generateQuarterlyPDF({
   // ===========================
 
   // Title (takes full width)
+  
   doc
     .font("Helvetica-Bold")
     .fontSize(16)
@@ -69,6 +71,7 @@ export function generateQuarterlyPDF({
 
   // LEFT DETAILS (start at headerY)
   doc
+    //Mirrors what the UI header shows
     .font("Helvetica")
     .fontSize(10)
     .text(`DADs: ${user.organization}`, leftX, headerY)
@@ -140,7 +143,6 @@ export function generateQuarterlyPDF({
       `PROJECTIONS AS\nAT 31 DEC ${period.year}`,
     ];
 
-
     let x = tableStartX;
     const headerHeight = 60; // <--- increase height here
 
@@ -187,12 +189,13 @@ export function generateQuarterlyPDF({
 
     const values = [
       item.title,
-      item.totalBudget.toLocaleString(),
-      item.amountReleased.toLocaleString(),
-      item.actualExpenditure.toLocaleString(),
-      item.actualPayments.toLocaleString(),
-      item.projection.toLocaleString(),
+      Number(item.totalBudget || 0).toLocaleString(),
+      Number(item.amountReleased || 0).toLocaleString(),
+      Number(item.actualExpenditure || 0).toLocaleString(),
+      Number(item.actualPayments || 0).toLocaleString(),
+      Number(item.projection || 0).toLocaleString(),
     ];
+
 
     values.forEach((val, i) => {
       const width = Object.values(colWidths)[i];
@@ -215,14 +218,15 @@ export function generateQuarterlyPDF({
   function drawSubRow(b, y) {
     let x = tableStartX;
 
-    const values = [
-      "   " + b.source, // indent
-      b.totalBudget.toLocaleString(),
-      b.amountReleased.toLocaleString(),
-      b.actualExpenditure.toLocaleString(),
-      b.actualPayments.toLocaleString(),
-      b.projection.toLocaleString(),
-    ];
+   const values = [
+     "   " + b.source,
+     Number(b.totalBudget || 0).toLocaleString(),
+     Number(b.amountReleased || 0).toLocaleString(),
+     Number(b.actualExpenditure || 0).toLocaleString(),
+     Number(b.actualPayments || 0).toLocaleString(),
+     Number(b.projection || 0).toLocaleString(),
+   ];
+
 
     values.forEach((val, i) => {
       const width = Object.values(colWidths)[i];
@@ -249,12 +253,13 @@ export function generateQuarterlyPDF({
 
     const values = [
       "TOTAL",
-      totals.totalBudget.toLocaleString(),
-      totals.amountReleased.toLocaleString(),
-      totals.actualExpenditure.toLocaleString(),
-      totals.actualPayments.toLocaleString(),
-      totals.projection.toLocaleString(),
+      Number(totals.totalBudget || 0).toLocaleString(),
+      Number(totals.amountReleased || 0).toLocaleString(),
+      Number(totals.actualExpenditure || 0).toLocaleString(),
+      Number(totals.actualPayments || 0).toLocaleString(),
+      Number(totals.projection || 0).toLocaleString(),
     ];
+
 
     values.forEach((val, i) => {
       const width = Object.values(colWidths)[i];

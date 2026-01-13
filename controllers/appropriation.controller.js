@@ -8,7 +8,6 @@ export const getAppropriationSummary = async (req, res, next) => {
 
     const user = await User.findByPk(req.user.id);
 
-    //  Security: non-admins cannot request ALL orgs
     if (user.role !== "admin" && organization === "ALL") {
       return res.status(403).json({
         success: false,
@@ -16,7 +15,6 @@ export const getAppropriationSummary = async (req, res, next) => {
       });
     }
 
-    //  Resolve organization scope
     const where =
       user.role === "admin"
         ? organization && organization !== "ALL"
@@ -24,52 +22,50 @@ export const getAppropriationSummary = async (req, res, next) => {
           : {}
         : { organization: user.organization };
 
-    // Year filter
-    if (year) {
-      where.year = Number(year);
-    }
+    if (year) where.year = Number(year);
+    if (sourceOfFunding !== "ALL") where.sourceOfFunding = sourceOfFunding;
 
-    // Funding filter
-    if (sourceOfFunding !== "ALL") {
-      where.sourceOfFunding = sourceOfFunding;
-    }
-
-    const data = await LoadedData.findAll({
+    const rows = await LoadedData.findAll({
       where,
       attributes: [
         "economicClassification",
         "sourceOfFunding",
-        [fn("SUM", col("appropriation")), "totalAppropriation"],
+        [fn("SUM", col("appropriation")), "appropriation"],
       ],
       group: ["economicClassification", "sourceOfFunding"],
       order: [
         ["economicClassification", "ASC"],
         ["sourceOfFunding", "ASC"],
       ],
+      raw: true,
     });
 
-    const totals = data.reduce(
-      (acc, row) => {
-        acc.totalAppropriation += Number(
-          row.dataValues.totalAppropriation || 0
-        );
-        return acc;
-      },
-      { totalAppropriation: 0 }
-    );
+    const data = rows.reduce((acc, r) => {
+      if (!acc[r.economicClassification]) {
+        acc[r.economicClassification] = {
+          economicClassification: r.economicClassification,
+          breakdown: {},
+          total: 0,
+        };
+      }
 
+      acc[r.economicClassification].breakdown[r.sourceOfFunding] = Number(
+        r.appropriation || 0
+      );
+      acc[r.economicClassification].total += Number(r.appropriation || 0);
 
-    return res.json({
+      return acc;
+    }, {});
+
+    res.json({
       success: true,
-      year: year || null,
+      year,
       organization:
         user.role === "admin" ? organization || "ALL" : user.organization,
       sourceOfFunding,
-      data,
-      totals,
+      data: Object.values(data),
     });
   } catch (error) {
-    console.error("Appropriation summary error:", error);
     next(error);
   }
 };

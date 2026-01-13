@@ -1,18 +1,22 @@
 import LoadedData from "../models/loadedData.js";
 import { fn, col } from "sequelize";
 
-//Sum appropriations from loadedData
-export async function getAppropriationTotals({ organization, user, year }) {
-  const where =
-    user.role === "admin"
-      ? organization && organization !== "ALL"
-        ? { organization }
-        : {}
-      : { organization: user.organization };
+export async function getAppropriationData({
+  year,
+  sourceOfFunding,
+  organization,
+  user,
+}) {
+  const where = {
+    year,
+    ...(sourceOfFunding !== "ALL" && { sourceOfFunding }),
+  };
 
-      if (year) {
-  where.year = Number(year);
-}
+  if (user.role !== "admin") {
+    where.organization = user.organization;
+  } else if (organization) {
+    where.organization = organization;
+  }
 
   return LoadedData.findAll({
     where,
@@ -22,7 +26,6 @@ export async function getAppropriationTotals({ organization, user, year }) {
       [fn("SUM", col("appropriation")), "totalAppropriation"],
     ],
     group: ["economicClassification", "sourceOfFunding"],
+    raw: true,
   });
 }
-
-

@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import BudgetExpenditure from "../models/expenditure.model.js";
+import LoadedData from "../models/loadedData.js";
 import User from "../models/users.js";
 import { Op, fn, col } from "sequelize";
 import path from "path";
@@ -22,7 +23,6 @@ export const getQuarterlyReport = async (req, res, next) => {
       });
     }
 
-
     if (!year || !quarter) {
       return next(new Error("Year and quarter are required."));
     }
@@ -36,64 +36,99 @@ export const getQuarterlyReport = async (req, res, next) => {
     };
     const [quarterStart, quarterEnd] = quarters[quarter];
 
-    // WHERE clause
-    let where = {
-      date: { [Op.between]: [quarterStart, quarterEnd] },
+    // Resolve organization scope
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
+      user,
+      organization,
+    });
+
+    /**
+     *  APPROPRIATION — AUTHORITATIVE ROWS
+     */
+    const appropriationWhere = {
+      year,
+      ...(resolvedOrg && { organization: resolvedOrg }),
+      ...(sourceOfFunding !== "ALL" && { sourceOfFunding }),
     };
 
-    if (sourceOfFunding !== "ALL") {
-      where.sourceOfFunding = sourceOfFunding; // IMPORTANT
-    }
-
-     const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
-       user,
-       organization,
-     });
-
-    const include = [
-  {
-    model: User,
-    attributes: [],
-    ...(resolvedOrg && { where: { organization: resolvedOrg } }),
-  },
-];
-
-
-
-    // ALWAYS group by both (fix)
-    const groupBy = ["economicClassification", "sourceOfFunding"];
-
-    // ALWAYS select both fields (fix)
-    const attributes = [
-      "economicClassification",
-      "sourceOfFunding",
-      [fn("SUM", col("appropriation")), "totalAppropriation"],
-      [fn("SUM", col("releases")), "totalReleases"],
-      [fn("SUM", col("actualExpenditure")), "totalExpenditure"],
-      [fn("SUM", col("actualPayment")), "totalPayment"],
-    ];
-
-    const report = await BudgetExpenditure.findAll({
-      where,
-      include,
-      attributes,
-      group: groupBy,
+    const appropriations = await LoadedData.findAll({
+      where: appropriationWhere,
+      attributes: [
+        "economicClassification",
+        "sourceOfFunding",
+        [fn("SUM", col("appropriation")), "totalAppropriation"],
+      ],
+      group: ["economicClassification", "sourceOfFunding"],
       order: [
         ["economicClassification", "ASC"],
         ["sourceOfFunding", "ASC"],
       ],
+      raw: true,
     });
 
-    // Compute totals
+    /**
+     *  EXPENDITURE — DECORATOR
+     */
+    const expenditureWhere = {
+      date: { [Op.between]: [quarterStart, quarterEnd] },
+      ...(sourceOfFunding !== "ALL" && { sourceOfFunding }),
+    };
+
+    const expenditures = await BudgetExpenditure.findAll({
+      where: expenditureWhere,
+      include: [
+        {
+          model: User,
+          attributes: [],
+          ...(resolvedOrg && { where: { organization: resolvedOrg } }),
+        },
+      ],
+      attributes: [
+        "economicClassification",
+        "sourceOfFunding",
+        [fn("SUM", col("releases")), "totalReleases"],
+        [fn("SUM", col("actualExpenditure")), "totalExpenditure"],
+        [fn("SUM", col("actualPayment")), "totalPayment"],
+      ],
+      group: ["economicClassification", "sourceOfFunding"],
+      raw: true,
+    });
+
+    /**
+     *  Index expenditure
+     */
+    const expenditureIndex = {};
+    expenditures.forEach((e) => {
+      expenditureIndex[`${e.economicClassification}__${e.sourceOfFunding}`] = e;
+    });
+
+    /**
+     *  Merge into final report rows
+     */
+    const report = appropriations.map((a) => {
+      const key = `${a.economicClassification}__${a.sourceOfFunding}`;
+      const e = expenditureIndex[key] || {};
+
+      return {
+        economicClassification: a.economicClassification,
+        sourceOfFunding: a.sourceOfFunding,
+        totalAppropriation: Number(a.totalAppropriation || 0),
+        totalReleases: Number(e.totalReleases || 0),
+        totalExpenditure: Number(e.totalExpenditure || 0),
+        totalPayment: Number(e.totalPayment || 0),
+        projection: 0,
+      };
+    });
+
+    /**
+     *  Totals
+     */
     const totals = report.reduce(
       (acc, r) => ({
-        totalAppropriation:
-          acc.totalAppropriation + Number(r.dataValues.totalAppropriation || 0),
-        totalReleases:
-          acc.totalReleases + Number(r.dataValues.totalReleases || 0),
-        totalExpenditure:
-          acc.totalExpenditure + Number(r.dataValues.totalExpenditure || 0),
-        totalPayment: acc.totalPayment + Number(r.dataValues.totalPayment || 0),
+        totalAppropriation: acc.totalAppropriation + r.totalAppropriation,
+        totalReleases: acc.totalReleases + r.totalReleases,
+        totalExpenditure: acc.totalExpenditure + r.totalExpenditure,
+        totalPayment: acc.totalPayment + r.totalPayment,
       }),
       {
         totalAppropriation: 0,
@@ -103,7 +138,6 @@ export const getQuarterlyReport = async (req, res, next) => {
       }
     );
 
-   
     return res.json({
       success: true,
       organization: isAll ? "ALL" : resolvedOrg,
@@ -117,6 +151,7 @@ export const getQuarterlyReport = async (req, res, next) => {
     next(error);
   }
 };
+
 
 
 
@@ -322,6 +357,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
 
 
 //pdf export
+//needed for logo path
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
