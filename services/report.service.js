@@ -12,7 +12,6 @@ export async function getQuarterlyReportData({
   organization,
   user,
 }) {
-  //Converts quarter number → date range
   const quarters = {
     1: [`${year}-01-01`, `${year}-03-31`],
     2: [`${year}-04-01`, `${year}-06-30`],
@@ -22,45 +21,29 @@ export async function getQuarterlyReportData({
 
   const [start, end] = quarters[quarter];
 
-  //Only include budget execution records that occurred in this quarter
-  let where = {
-    date: { [Op.between]: [start, end] },
+  const where = {
+    createdAt: { [Op.between]: [start, end] }, // 
   };
 
-  //if source of funding is not equal to all then return the one chosen, if all, no filtering is done
   if (sourceOfFunding !== "ALL") {
     where.sourceOfFunding = sourceOfFunding;
   }
 
-  //If admin selects a specific organization return the organization, if admin select all, no filters for organization, if it is a normal user return records of user organization
-  const include = [
-    {
-      model: User,
-      attributes: [],
-      where:
-        user.role === "admin"
-          ? organization
-            ? { organization }
-            : {}
-          : { organization: user.organization },
-    },
-  ];
-
   return await BudgetExpenditure.findAll({
     where,
-    include,
     attributes: [
       "economicClassification",
       "sourceOfFunding",
-      [fn("SUM", col("appropriation")), "totalAppropriation"],
       [fn("SUM", col("releases")), "totalReleases"],
       [fn("SUM", col("actualExpenditure")), "totalExpenditure"],
       [fn("SUM", col("actualPayment")), "totalPayment"],
     ],
     group: ["economicClassification", "sourceOfFunding"],
     order: [["economicClassification", "ASC"]],
+    raw: true,
   });
 }
+
 
 
 

@@ -9,126 +9,61 @@ import { getQuarterlyReportData, groupEconomicData, sortByEconomicOrder, sortFun
 import { generateQuarterlyPDF } from "../utils/pdfGenerator.js";
 import { getQuarterPeriod } from "../utils/quarterPeriod.js";
 import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
+import { buildEconomicReport } from "../services/economicReport.service.js";
 
 
 export const getQuarterlyReport = async (req, res, next) => {
   try {
-    const { year, quarter, organization, sourceOfFunding = "ALL" } = req.query;
+    const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
+
+    if (!req.user) {
+      return res.status(401).json({ message: "User not logged in" });
+    }
+
+    if (!year || !quarter) {
+      return res.status(400).json({
+        message: "Year and quarter are required",
+      });
+    }
+
     const user = await User.findByPk(req.user.id);
 
     if (user.role !== "admin" && organization === "ALL") {
       return res.status(403).json({
-        success: false,
         message: "You are not allowed to access all organizations",
       });
     }
 
-    if (!year || !quarter) {
-      return next(new Error("Year and quarter are required."));
-    }
-
-    // Quarter ranges
-    const quarters = {
-      1: [`${year}-01-01`, `${year}-03-31`],
-      2: [`${year}-04-01`, `${year}-06-30`],
-      3: [`${year}-07-01`, `${year}-09-30`],
-      4: [`${year}-10-01`, `${year}-12-31`],
-    };
-    const [quarterStart, quarterEnd] = quarters[quarter];
-
-    // Resolve organization scope
     const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
       user,
       organization,
     });
 
-    /**
-     *  APPROPRIATION — AUTHORITATIVE ROWS
-     */
-    const appropriationWhere = {
+    // 🔑 SINGLE SOURCE OF TRUTH
+    const report = await buildEconomicReport({
       year,
-      ...(resolvedOrg && { organization: resolvedOrg }),
-      ...(sourceOfFunding !== "ALL" && { sourceOfFunding }),
-    };
-
-    const appropriations = await LoadedData.findAll({
-      where: appropriationWhere,
-      attributes: [
-        "economicClassification",
-        "sourceOfFunding",
-        [fn("SUM", col("appropriation")), "totalAppropriation"],
-      ],
-      group: ["economicClassification", "sourceOfFunding"],
-      order: [
-        ["economicClassification", "ASC"],
-        ["sourceOfFunding", "ASC"],
-      ],
-      raw: true,
+      quarter,
+      sourceOfFunding,
+      organization: resolvedOrg,
+      user,
     });
 
-    /**
-     *  EXPENDITURE — DECORATOR
-     */
-    const expenditureWhere = {
-      date: { [Op.between]: [quarterStart, quarterEnd] },
-      ...(sourceOfFunding !== "ALL" && { sourceOfFunding }),
-    };
+    // Group for UI
+   const grouped = sortByEconomicOrder(report);
 
-    const expenditures = await BudgetExpenditure.findAll({
-      where: expenditureWhere,
-      include: [
-        {
-          model: User,
-          attributes: [],
-          ...(resolvedOrg && { where: { organization: resolvedOrg } }),
-        },
-      ],
-      attributes: [
-        "economicClassification",
-        "sourceOfFunding",
-        [fn("SUM", col("releases")), "totalReleases"],
-        [fn("SUM", col("actualExpenditure")), "totalExpenditure"],
-        [fn("SUM", col("actualPayment")), "totalPayment"],
-      ],
-      group: ["economicClassification", "sourceOfFunding"],
-      raw: true,
-    });
+   if (sourceOfFunding === "ALL") {
+     grouped.forEach((g) => {
+       g.breakdown = sortFundingSources(g.breakdown);
+     });
+   }
 
-    /**
-     *  Index expenditure
-     */
-    const expenditureIndex = {};
-    expenditures.forEach((e) => {
-      expenditureIndex[`${e.economicClassification}__${e.sourceOfFunding}`] = e;
-    });
 
-    /**
-     *  Merge into final report rows
-     */
-    const report = appropriations.map((a) => {
-      const key = `${a.economicClassification}__${a.sourceOfFunding}`;
-      const e = expenditureIndex[key] || {};
-
-      return {
-        economicClassification: a.economicClassification,
-        sourceOfFunding: a.sourceOfFunding,
-        totalAppropriation: Number(a.totalAppropriation || 0),
-        totalReleases: Number(e.totalReleases || 0),
-        totalExpenditure: Number(e.totalExpenditure || 0),
-        totalPayment: Number(e.totalPayment || 0),
-        projection: 0,
-      };
-    });
-
-    /**
-     *  Totals
-     */
-    const totals = report.reduce(
-      (acc, r) => ({
-        totalAppropriation: acc.totalAppropriation + r.totalAppropriation,
-        totalReleases: acc.totalReleases + r.totalReleases,
-        totalExpenditure: acc.totalExpenditure + r.totalExpenditure,
-        totalPayment: acc.totalPayment + r.totalPayment,
+    const totals = grouped.reduce(
+      (acc, x) => ({
+        totalAppropriation: acc.totalAppropriation + x.totalBudget,
+        totalReleases: acc.totalReleases + x.amountReleased,
+        totalExpenditure: acc.totalExpenditure + x.actualExpenditure,
+        totalPayment: acc.totalPayment + x.actualPayments,
       }),
       {
         totalAppropriation: 0,
@@ -138,19 +73,20 @@ export const getQuarterlyReport = async (req, res, next) => {
       }
     );
 
-    return res.json({
+    res.json({
       success: true,
       organization: isAll ? "ALL" : resolvedOrg,
-      sourceOfFunding,
       year,
       quarter,
-      report,
+      sourceOfFunding,
+      report: grouped,
       totals,
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
+
 
 
 
@@ -161,112 +97,75 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
   try {
     const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
 
-    // Basic validation
-    if (!year || !quarter) {
-      return res
-        .status(400)
-        .json({ message: "Year and quarter are required." });
-    }
-
+    // =========================
+    // BASIC VALIDATION
+    // =========================
     if (!req.user) {
-      return res.status(401).json({ message: "User not logged in!" });
+      return res.status(401).json({ message: "User not logged in" });
     }
 
-    // Resolve user first (IMPORTANT)
+    if (!year || !quarter) {
+      return res.status(400).json({ message: "Year and quarter are required" });
+    }
+
     const user = await User.findByPk(req.user.id);
 
-    // Security: non-admins cannot request ALL
     if (user.role !== "admin" && organization === "ALL") {
       return res.status(403).json({
-        success: false,
         message: "You are not allowed to access all organizations",
       });
     }
 
-    // Quarter ranges
-    const quarters = {
-      1: [`${year}-01-01`, `${year}-03-31`],
-      2: [`${year}-04-01`, `${year}-06-30`],
-      3: [`${year}-07-01`, `${year}-09-30`],
-      4: [`${year}-10-01`, `${year}-12-31`],
-    };
-
-    const [start, end] = quarters[quarter];
-
-    // WHERE clause
-    const where = {
-      date: { [Op.between]: [start, end] },
-    };
-
-    if (sourceOfFunding !== "ALL") {
-      where.sourceOfFunding = sourceOfFunding;
-    }
-
-    // Resolve organization scope (admin / ALL / user)
-    const { organization: orgScope } = resolveOrganizationScope({
+    // =========================
+    // RESOLVE ORGANIZATION
+    // =========================
+    const { organization: resolvedOrg } = resolveOrganizationScope({
       user,
       organization,
     });
 
-    const include = [
-      {
-        model: User,
-        attributes: [],
-        ...(orgScope && { where: { organization: orgScope } }),
-      },
-    ];
-
-    // Always group consistently
-    const groupBy = ["economicClassification", "sourceOfFunding"];
-
-    const report = await BudgetExpenditure.findAll({
-      where,
-      include,
-      attributes: [
-        "economicClassification",
-        "sourceOfFunding",
-        [fn("SUM", col("appropriation")), "totalAppropriation"],
-        [fn("SUM", col("releases")), "totalReleases"],
-        [fn("SUM", col("actualExpenditure")), "totalExpenditure"],
-        [fn("SUM", col("actualPayment")), "totalPayment"],
-      ],
-      group: groupBy,
-      order: [
-        ["economicClassification", "ASC"],
-        ["sourceOfFunding", "ASC"],
-      ],
+    // =========================
+    //  SINGLE SOURCE OF TRUTH
+    // =========================
+    let grouped = await buildEconomicReport({
+      year,
+      quarter,
+      sourceOfFunding,
+      organization: resolvedOrg,
+      user,
     });
 
-    // Group & sort
-    let grouped = groupEconomicData(report, sourceOfFunding);
+    // Sort economic classification order
     grouped = sortByEconomicOrder(grouped);
 
+    // Sort funding sources when ALL
     if (sourceOfFunding === "ALL") {
-      grouped = grouped.map((item) => ({
-        ...item,
-        breakdown: sortFundingSources(item.breakdown),
-      }));
+      grouped.forEach((g) => {
+        g.breakdown = sortFundingSources(g.breakdown);
+      });
     }
 
-    // Totals
+    // =========================
+    // TOTALS (MATCH UI & PDF)
+    // =========================
     const totals = grouped.reduce(
       (acc, x) => ({
-        totalBudget: acc.totalBudget + x.totalBudget,
-        amountReleased: acc.amountReleased + x.amountReleased,
-        actualExpenditure: acc.actualExpenditure + x.actualExpenditure,
-        actualPayments: acc.actualPayments + x.actualPayments,
-        projection: 0,
+        totalAppropriation: acc.totalAppropriation + x.totalBudget,
+        totalReleases: acc.totalReleases + x.amountReleased,
+        totalExpenditure: acc.totalExpenditure + x.actualExpenditure,
+        totalPayment: acc.totalPayment + x.actualPayments,
       }),
       {
-        totalBudget: 0,
-        amountReleased: 0,
-        actualExpenditure: 0,
-        actualPayments: 0,
-        projection: 0,
+        totalAppropriation: 0,
+        totalReleases: 0,
+        totalExpenditure: 0,
+        totalPayment: 0,
       }
     );
 
-    // Workbook
+    // =========================
+    // EXCEL GENERATION
+    // =========================
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Quarterly Report", {
       views: [{ state: "frozen", ySplit: 1 }],
@@ -278,18 +177,18 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       "Summary of Budget Performance by Economic Classification and Funding",
     ]).font = { bold: true, size: 14 };
 
-    const header = [
+    sheet.addRow([
       "EXPENDITURE ITEM",
       `${period.year} APPROVED BUDGET / APPROPRIATION`,
       `AMOUNT RELEASED AS AT END ${period.endMonthName} ${period.year}`,
       `ACTUAL EXPENDITURE AS AT END ${period.endMonthName} ${period.year}`,
       `ACTUAL PAYMENTS AS AT END ${period.endMonthName} ${period.year}`,
       `PROJECTIONS AS AT 31 DEC ${period.year}`,
-    ];
+    ]).font = { bold: true };
 
-    sheet.addRow(header).font = { bold: true };
-
-    // Rows
+    // =========================
+    // DATA ROWS
+    // =========================
     grouped.forEach((item) => {
       const parent = sheet.addRow([
         item.title,
@@ -316,13 +215,16 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       });
     });
 
+    // =========================
+    // TOTAL ROW
+    // =========================
     const totalRow = sheet.addRow([
       "TOTAL",
-      totals.totalBudget,
-      totals.amountReleased,
-      totals.actualExpenditure,
-      totals.actualPayments,
-      totals.projection,
+      totals.totalAppropriation,
+      totals.totalReleases,
+      totals.totalExpenditure,
+      totals.totalPayment,
+      0,
     ]);
 
     totalRow.font = { bold: true, color: { argb: "FF166534" } };
@@ -336,6 +238,9 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       { width: 20 },
     ];
 
+    // =========================
+    // STREAM RESPONSE
+    // =========================
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -351,6 +256,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
     next(error);
   }
 };
+
 
 
 
@@ -399,24 +305,25 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
     });
 
     // Fetch report data
-    const report = await getQuarterlyReportData({
+
+    const report = await buildEconomicReport({
       year,
       quarter,
       sourceOfFunding,
-      organization: resolvedOrg, // null = ALL
+      organization: resolvedOrg,
       user,
     });
 
+
     // Group & sort
-    let grouped = groupEconomicData(report, sourceOfFunding);
-    grouped = sortByEconomicOrder(grouped);
+    let grouped = sortByEconomicOrder(report);
 
     if (sourceOfFunding === "ALL") {
-      grouped = grouped.map((item) => ({
-        ...item,
-        breakdown: sortFundingSources(item.breakdown),
-      }));
+      grouped.forEach((g) => {
+        g.breakdown = sortFundingSources(g.breakdown);
+      });
     }
+
 
     // Totals
     const totals = grouped.reduce(

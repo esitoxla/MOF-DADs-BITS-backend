@@ -23,16 +23,10 @@ export async function buildEconomicReport({
     user,
   });
 
-  /**
-   * INTERNAL MAP
-   * key: economicClassification
-   * value: parent row with breakdown
-   */
   const map = new Map();
 
-  // ============================
-  // 1️⃣ LOAD APPROPRIATIONS
-  // ============================
+  // Load appropriations (authoritative)
+  // 1️⃣ Load appropriations (authoritative)
   appropriations.forEach((row) => {
     const econ = row.economicClassification;
     const source = row.sourceOfFunding;
@@ -57,7 +51,7 @@ export async function buildEconomicReport({
 
     parent.breakdown.push({
       source,
-      totalBudget: budget,
+      totalBudget: budget, // ✅ comes ONLY from LoadedData
       amountReleased: 0,
       actualExpenditure: 0,
       actualPayments: 0,
@@ -65,15 +59,12 @@ export async function buildEconomicReport({
     });
   });
 
-  // ============================
-  // 2️⃣ MERGE EXECUTION DATA
-  // ============================
+  // Merge execution
   execution.forEach((row) => {
     const econ = row.economicClassification;
     const source = row.sourceOfFunding;
 
     if (!map.has(econ)) {
-      // execution without appropriation
       map.set(econ, {
         title: econ,
         totalBudget: 0,
@@ -114,9 +105,7 @@ export async function buildEconomicReport({
     parent.actualPayments += payment;
   });
 
-  // ============================
-  // 3️⃣ FILTER FUNDING SOURCE
-  // ============================
+  // 3️⃣ Filter funding source
   if (sourceOfFunding !== "ALL") {
     map.forEach((parent) => {
       parent.breakdown = parent.breakdown.filter(
