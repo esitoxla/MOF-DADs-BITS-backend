@@ -1,44 +1,52 @@
-import bcrypt from "bcrypt"
-import jwt from "jsonwebtoken"
-import User from "../models/users.js"
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import User from "../models/users.js";
+import cloudinary from "../config/cloudinary.js";
 
 export const registerUser = async (req, res, next) => {
-    const { name, email, password, username, role, organization, designation } = req.body;
+  const { name, email, password, username, role, organization, designation } =
+    req.body;
 
-    if (!name || !email || !password || !username|| !role || !organization || !designation) {
-      const error = new Error("All fields required");
-      error.statusCode = 400;
-      return next(error);
-    }
+  if (
+    !name ||
+    !email ||
+    !password ||
+    !username ||
+    !role ||
+    !organization ||
+    !designation
+  ) {
+    const error = new Error("All fields required");
+    error.statusCode = 400;
+    return next(error);
+  }
 
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-        const error = new Error("User already exists");
-        error.statusCode = 400;
-        return next(error);
-    }
-    
-     try {
-       const user = await User.create(req.body);
+  const existingUser = await User.findOne({ where: { email } });
+  if (existingUser) {
+    const error = new Error("User already exists");
+    error.statusCode = 400;
+    return next(error);
+  }
 
-       //Respond with success (exclude password from response)
-       // A rest element must be last in a destructuring pattern.
-       const { password: _, ...userData } = user.get({ plain: true });
-       //.get({ plain: true }) is used to convert model instances to plain js objects since sequelize returns model instances
+  try {
+    const user = await User.create(req.body);
 
-       //password is extracted and stored in _(unused variable)
-       //Collect all the other properties (id, name, email, etc.) into userData.
-       res.status(201).json({
-         success: true,
-         statusCode: 201,
-         userData,
-       });
-     } catch (error) {
-       next()
-     }
+    //Respond with success (exclude password from response)
+    // A rest element must be last in a destructuring pattern.
+    const { password: _, ...userData } = user.get({ plain: true });
+    //.get({ plain: true }) is used to convert model instances to plain js objects since sequelize returns model instances
 
-}
-
+    //password is extracted and stored in _(unused variable)
+    //Collect all the other properties (id, name, email, etc.) into userData.
+    res.status(201).json({
+      success: true,
+      statusCode: 201,
+      userData,
+    });
+  } catch (error) {
+    next();
+  }
+};
 
 export const login = async (req, res, next) => {
   const { username, password } = req.body;
@@ -124,9 +132,6 @@ export const login = async (req, res, next) => {
   }
 };
 
-
-
-
 export const getUser = async (req, res, next) => {
   try {
     const token = req.cookies.jwt;
@@ -166,44 +171,57 @@ export const getUser = async (req, res, next) => {
   }
 };
 
-
-
 export const changePassword = async (req, res, next) => {
   try {
-    const { oldPassword, newPassword, confirmPassword } = req.body;
+    const { oldPassword, newPassword } = req.body;
 
-    // Validate input
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      const error = new Error("All fields are required");
-      error.statusCode = 400;
-      return next(error);
+    // 1. Required fields
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Old password and new password are required",
+      });
     }
 
-    if (newPassword !== confirmPassword) {
-      const error = new Error("Passwords do not match");
-      error.statusCode = 400;
-      return next(error);
-    }
+    // 2. Basic password rules (you can expand later)
+    // if (newPassword.length < 8) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "New password must be at least 8 characters long",
+    //   });
+    // }
 
-    // Get currently logged-in user (set by your protect middleware)
+    // 3. Fetch user with password
     const user = await User.scope("withPassword").findByPk(req.user.id);
     if (!user) {
-      const error = new Error("User not found");
-      error.statusCode = 404;
-      return next(error);
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
-    // Check if old password is correct
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    // 4. Verify old password
+    const isMatch = await user.comparePassword(oldPassword);
     if (!isMatch) {
-      const error = new Error("Incorrect old password");
-      error.statusCode = 401;
-      return next(error);
+      return res.status(401).json({
+        success: false,
+        message: "Incorrect old password",
+      });
     }
 
-    // Update password (the pre-save hook will handle hashing)
+    // 5. Prevent reuse of old password
+    const isSame = await user.comparePassword(newPassword);
+    if (isSame) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from old password",
+      });
+    }
+
+    // 6. Update password
     user.password = newPassword;
-    await user.save(); // Sequelize hook will hash automatically
+    user.passwordChangedAt = new Date();
+    await user.save();
 
     res.status(200).json({
       success: true,
@@ -214,8 +232,6 @@ export const changePassword = async (req, res, next) => {
   }
 };
 
-
-
 export const logout = async (req, res, next) => {
   try {
     res.clearCookie("jwt");
@@ -225,9 +241,6 @@ export const logout = async (req, res, next) => {
     next(error);
   }
 };
-
-
-
 
 export const refreshToken = async (req, res, next) => {
   const refreshToken = req.cookies.refreshJwt;
@@ -270,3 +283,74 @@ export const refreshToken = async (req, res, next) => {
     next(err);
   }
 };
+
+//uploading a profile picture
+export const updateAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const user = await User.findByPk(req.user.id, {
+      attributes: { include: ["avatarPublicId"] },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // delete old avatar if exists
+    if (user.avatarPublicId) {
+      await cloudinary.uploader.destroy(user.avatarPublicId);
+    }
+
+    user.avatarUrl = req.file.path; // secure_url
+    user.avatarPublicId = req.file.filename;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+//remove profile pic
+export const removeAvatar = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: { include: ["avatarPublicId"] },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.avatarPublicId) {
+      return res.status(200).json({
+        success: true,
+        user,
+      });
+    }
+
+    await cloudinary.uploader.destroy(user.avatarPublicId);
+
+    user.avatarUrl = null;
+    user.avatarPublicId = null;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

@@ -123,11 +123,11 @@ export function generateQuarterlyPDF({
   const tableTop = doc.y + 10;
   const colWidths = {
     item: 150,
-    appropriation: 75,
-    releases: 75,
-    expenditure: 75,
-    payments: 75,
-    projection: 75,
+    appropriation: 100,
+    releases: 70,
+    expenditure: 70,
+    payments: 70,
+    projection: 70,
   };
 
   const tableStartX = 40;

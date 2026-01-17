@@ -1,6 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/database.js";
-import bcrypt from "bcrypt"
+import bcrypt from "bcrypt";
 
 const User = sequelize.define(
   "users",
@@ -36,14 +36,24 @@ const User = sequelize.define(
     lastLogin: {
       type: DataTypes.DATE,
     },
+    avatarPublicId: {
+      type: DataTypes.STRING,
+    },
+    avatarUrl: {
+      type: DataTypes.STRING,
+    },
+    passwordChangedAt: {
+      type: DataTypes.DATE,
+    },
   },
   {
     timestamps: true,
+    underscored: true,
     //scopes are a sequelize feature which controls which columns (fields) are included or excluded automatically when you query your model.
 
     //Whenever you query the User model normally (e.g., User.findAll() or User.findOne()), // Sequelize will automatically exclude the password field from the results.
     defaultScope: {
-      attributes: { exclude: ["password"] },
+      attributes: { exclude: ["password", "avatarPublicId"] },
     },
     //This defines a special override scope you can activate when you do want to include the password field
     scopes: {
@@ -60,6 +70,7 @@ const User = sequelize.define(
       beforeUpdate: async (user) => {
         if (user.changed("password")) {
           user.password = await bcrypt.hash(user.password, 12);
+          user.passwordChangedAt = new Date();
         }
       },
     },

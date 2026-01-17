@@ -59,7 +59,7 @@ const startServer = async () => {
   } catch (err) {
     console.error("Startup failed:", err);
     //The process never exits silently
-    process.exist(1);
+    process.exit(1);
   }
 };
 
