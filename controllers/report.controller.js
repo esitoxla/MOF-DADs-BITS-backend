@@ -39,7 +39,7 @@ export const getQuarterlyReport = async (req, res, next) => {
       organization,
     });
 
-    // 🔑 SINGLE SOURCE OF TRUTH
+    // SINGLE SOURCE OF TRUTH
     const report = await buildEconomicReport({
       year,
       quarter,

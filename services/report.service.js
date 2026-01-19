@@ -29,6 +29,13 @@ export async function getQuarterlyReportData({
     where.sourceOfFunding = sourceOfFunding;
   }
 
+  if (user.role !== "admin") {
+    where.organization = user.organization;
+  } else if (organization && organization !== "ALL") {
+    where.organization = organization;
+  }
+
+
   return await BudgetExpenditure.findAll({
     where,
     attributes: [

@@ -26,7 +26,7 @@ export async function buildEconomicReport({
   const map = new Map();
 
   // Load appropriations (authoritative)
-  // 1️⃣ Load appropriations (authoritative)
+  // Load appropriations (authoritative)
   appropriations.forEach((row) => {
     const econ = row.economicClassification;
     const source = row.sourceOfFunding;
@@ -47,11 +47,11 @@ export async function buildEconomicReport({
 
     const budget = Number(row.totalAppropriation || 0);
 
-    parent.totalBudget += budget;
+    // parent.totalBudget += budget;
 
     parent.breakdown.push({
       source,
-      totalBudget: budget, // ✅ comes ONLY from LoadedData
+      totalBudget: budget, //  comes ONLY from LoadedData
       amountReleased: 0,
       actualExpenditure: 0,
       actualPayments: 0,
@@ -81,15 +81,8 @@ export async function buildEconomicReport({
     let child = parent.breakdown.find((b) => b.source === source);
 
     if (!child) {
-      child = {
-        source,
-        totalBudget: 0,
-        amountReleased: 0,
-        actualExpenditure: 0,
-        actualPayments: 0,
-        projection: 0,
-      };
-      parent.breakdown.push(child);
+      // Ignore execution rows without an appropriation
+      return;
     }
 
     const released = Number(row.totalReleases || 0);
@@ -99,13 +92,9 @@ export async function buildEconomicReport({
     child.amountReleased += released;
     child.actualExpenditure += expenditure;
     child.actualPayments += payment;
-
-    parent.amountReleased += released;
-    parent.actualExpenditure += expenditure;
-    parent.actualPayments += payment;
   });
 
-  // 3️⃣ Filter funding source
+  // Filter funding source
   if (sourceOfFunding !== "ALL") {
     map.forEach((parent) => {
       parent.breakdown = parent.breakdown.filter(
@@ -113,6 +102,29 @@ export async function buildEconomicReport({
       );
     });
   }
+
+  // Recalculate totals from final breakdown (single source of truth)
+  map.forEach((parent) => {
+    parent.totalBudget = parent.breakdown.reduce(
+      (sum, b) => sum + Number(b.totalBudget || 0),
+      0
+    );
+
+    parent.amountReleased = parent.breakdown.reduce(
+      (sum, b) => sum + Number(b.amountReleased || 0),
+      0
+    );
+
+    parent.actualExpenditure = parent.breakdown.reduce(
+      (sum, b) => sum + Number(b.actualExpenditure || 0),
+      0
+    );
+
+    parent.actualPayments = parent.breakdown.reduce(
+      (sum, b) => sum + Number(b.actualPayments || 0),
+      0
+    );
+  });
 
   return Array.from(map.values());
 }
