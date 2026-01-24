@@ -1,8 +1,5 @@
 import ExcelJS from "exceljs";
-import BudgetExpenditure from "../models/expenditure.model.js";
-import LoadedData from "../models/loadedData.js";
 import User from "../models/users.js";
-import { Op, fn, col } from "sequelize";
 import path from "path";
 import { fileURLToPath } from "url";
 import { getQuarterlyReportData, groupEconomicData, sortByEconomicOrder, sortFundingSources } from "../services/report.service.js";
@@ -10,6 +7,7 @@ import { generateQuarterlyPDF } from "../utils/pdfGenerator.js";
 import { getQuarterPeriod } from "../utils/quarterPeriod.js";
 import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
 import { buildEconomicReport } from "../services/economicReport.service.js";
+import { getDetailedECReport } from "../services/detailedReport.service.js";
 
 
 export const getQuarterlyReport = async (req, res, next) => {
@@ -86,9 +84,6 @@ export const getQuarterlyReport = async (req, res, next) => {
     next(err);
   }
 };
-
-
-
 
 
 
@@ -259,9 +254,6 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
 
 
 
-
-
-
 //pdf export
 //needed for logo path
 const __filename = fileURLToPath(import.meta.url);
@@ -371,4 +363,51 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
 };
 
 
+
+export const getDetailedEC = async (req, res, next) => {
+  try {
+    const { year, quarter, organization } = req.query;
+   
+    if (!req.user) {
+      return res.status(401).json({ message: "User not logged in" });
+    }
+
+    if (!year || !quarter) {
+      return res.status(400).json({
+        success: false,
+        message: "Year and quarter are required",
+      });
+    }
+
+    const user = await User.findByPk(req.user.id);
+
+    //  Enforce admin rule
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
+    //  Resolve organization scope
+    const resolvedOrg =
+      organization === "ALL" ? null : organization || user.organization;
+
+    const records = await getDetailedECReport({
+      year,
+      quarter,
+      organization: resolvedOrg, // null = ALL
+    });
+
+    res.json({
+      success: true,
+      year,
+      quarter,
+      organization: resolvedOrg ?? "ALL",
+      records,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 

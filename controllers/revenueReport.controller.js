@@ -3,14 +3,13 @@ import path from "path";
 import { fileURLToPath } from "url";
 import User from "../models/users.js";
 import { generateRevenuePDF } from "../utils/revenueReport.pdf.js";
-
 import {
   getQuarterlyRevenueData,
   groupRevenueData,
   totalRevenueSummary,
 } from "../services/report.service.js";
-import { formatGHS } from "../utils/numberFormat.js";
 import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
+import { getDetailedRevenueData } from "../services/detailedRevenueReport.service.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,7 +38,7 @@ export const getQuarterlyRevenueReport = async (req, res, next) => {
    }
 
 
-    const { organization: resolvedOrg } = resolveOrganizationScope({
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
       user,
       organization,
     });
@@ -48,7 +47,6 @@ export const getQuarterlyRevenueReport = async (req, res, next) => {
       year,
       quarter,
       organization: resolvedOrg, // null = ALL
-      user,
     });
 
     
@@ -61,7 +59,7 @@ export const getQuarterlyRevenueReport = async (req, res, next) => {
       success: true,
       year,
       quarter,
-      organization: organization === "ALL" ? "ALL" : resolvedOrg,
+      organization: isAll ? "ALL" : resolvedOrg,
       records: grouped,
       totals,
     });
@@ -97,7 +95,7 @@ export const exportQuarterlyRevenueExcel = async (req, res, next) => {
 
 
     //Fetch raw revenue data from the report service
-    const { organization: resolvedOrg } = resolveOrganizationScope({
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
       user,
       organization,
     });
@@ -105,8 +103,7 @@ export const exportQuarterlyRevenueExcel = async (req, res, next) => {
     const raw = await getQuarterlyRevenueData({
       year,
       quarter,
-      organization: resolvedOrg, // null = ALL
-      user,
+      organization: resolvedOrg,
     });
 
 
@@ -241,7 +238,7 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
     }
 
 
-    const { organization: resolvedOrg } = resolveOrganizationScope({
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
       user,
       organization,
     });
@@ -249,8 +246,7 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
     const raw = await getQuarterlyRevenueData({
       year,
       quarter,
-      organization: resolvedOrg, // null = ALL
-      user,
+      organization: resolvedOrg,
     });
 
     const grouped = groupRevenueData(raw);
@@ -269,12 +265,62 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
       totals,
       year,
       quarter,
+      organization: isAll ? "ALL" : resolvedOrg,
       user,
       logoPath,
       res,
     });
   } catch (err) {
     if (res.headersSent) return;
+    next(err);
+  }
+};
+
+
+// =========================================================
+// 4. DETAILED REVENUE REPORT 
+// =========================================================
+export const getDetailedRevenueReport = async (req, res, next) => {
+  try {
+    const { year, quarter, organization } = req.query;
+    const user = req.user;
+
+    if (!year || !quarter) {
+      return res.status(400).json({
+        success: false,
+        message: "Year and quarter are required",
+      });
+    }
+
+    // Only admin can request ALL
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
+    // Resolve org scope
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
+      user,
+      organization,
+    });
+
+    // Delegating everything else to the service
+    const records = await getDetailedRevenueData({
+      year,
+      quarter,
+      organization: resolvedOrg, // null = ALL
+    });
+
+    res.json({
+      success: true,
+      year,
+      quarter,
+      organization: isAll ? "ALL" : resolvedOrg,
+      records,
+    });
+  } catch (err) {
     next(err);
   }
 };

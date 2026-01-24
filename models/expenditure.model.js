@@ -14,8 +14,12 @@ const BudgetExpenditure = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    date: {
+    organization: {
       type: DataTypes.STRING,
+      allowNull: false,
+    },
+    date: {
+      type: DataTypes.DATEONLY,
       allowNull: false,
     },
     economicClassification: {
@@ -124,3 +128,5 @@ BudgetExpenditure.belongsTo(User);
 
 
 export default BudgetExpenditure;
+
+//Design the backend /reports/ec/detailed query, and can we do same for revenue and for future ones too, can they be in one controller, tho they have different models

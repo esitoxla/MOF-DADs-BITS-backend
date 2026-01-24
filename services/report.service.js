@@ -131,7 +131,6 @@ export async function getQuarterlyRevenueData({
   year,
   quarter,
   organization,
-  user,
 }) {
   const quarters = {
     1: [`${year}-01-01`, `${year}-03-31`],
