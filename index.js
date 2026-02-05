@@ -13,6 +13,7 @@ import revenueReportRoute from "./routes/revenueReport.route.js";
 import loadedDataRoute from "./routes/loadedData.route.js";
 import budgetRoute from "./routes/budget.route.js";
 import appropriationRoute from "./routes/appropriation.route.js";
+import cashRoute from "./routes/cash.route.js";
 
 const PORT = process.env.PORT || 7005;
 
@@ -42,6 +43,7 @@ app.use("/api/revenueReport", revenueReportRoute);
 app.use("/api/loadedData", loadedDataRoute);
 app.use("/api/budget", budgetRoute);
 app.use("/api/appropriation", appropriationRoute);
+app.use("/api/cash", cashRoute);
 
 //middleware
 app.use(notFound);
