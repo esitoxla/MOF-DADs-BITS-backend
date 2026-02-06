@@ -72,6 +72,7 @@ const Cash = sequelize.define(
   },
   {
     tableName: "cash",
+    freezeTableName: true,
     timestamps: true,
     indexes: [
       {
