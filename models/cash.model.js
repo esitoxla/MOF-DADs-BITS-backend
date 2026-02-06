@@ -71,6 +71,7 @@ const Cash = sequelize.define(
     },
   },
   {
+    tableName: "cash",
     timestamps: true,
     indexes: [
       {
