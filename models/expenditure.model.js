@@ -45,6 +45,12 @@ const BudgetExpenditure = sequelize.define(
         min: 0, // ensures value is 0 or greater
       },
     },
+    appropriationBalance: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+
     allotment: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: false,
@@ -120,7 +126,7 @@ const BudgetExpenditure = sequelize.define(
       allowNull: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 User.hasMany(BudgetExpenditure);

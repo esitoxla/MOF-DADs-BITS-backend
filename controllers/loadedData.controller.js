@@ -21,6 +21,7 @@ export const createLoadedData = async (req, res, next) => {
       naturalAccount,
       appropriation,
       allotment,
+      year
     } = req.body;
 
     // Required fields (REMOVE allotment)
@@ -29,6 +30,7 @@ export const createLoadedData = async (req, res, next) => {
       !economicClassification ||
       !sourceOfFunding ||
       !naturalAccount ||
+      !year ||
       appropriation === undefined
     ) {
       const error = new Error("Required fields are missing.");
@@ -76,6 +78,7 @@ export const createLoadedData = async (req, res, next) => {
       naturalAccount,
       appropriation: appropriationValue,
       allotment: allotmentValue, // DEFAULTS TO 0
+      year,
       userId,
     });
 
@@ -147,32 +150,41 @@ export const uploadExcelLoadedData = async (req, res, next) => {
     const errors = [];
 
     sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
+      if (rowNumber === 1) return; // header row
 
-      const [
-        rawOrganization,
-        rawEconomicClassification,
-        rawSourceOfFunding,
-        rawNaturalAccount,
-        rawAppropriation,
-        rawAllotment,
-      ] = row.values.slice(1);
+      const rawOrganization = row.getCell(1).value;
+      const rawEconomicClassification = row.getCell(2).value;
+      const rawSourceOfFunding = row.getCell(3).value;
+      const rawNaturalAccount = row.getCell(4).value;
+      const rawAppropriation = row.getCell(5).value;
+      const rawAllotment = row.getCell(6).value;
+      const rawYear = row.getCell(7).value;
 
-      // Normalize values
       const organization = normalize(rawOrganization);
       const economicClassification = normalize(rawEconomicClassification);
       const sourceOfFunding = normalize(rawSourceOfFunding);
       const naturalAccount = normalize(rawNaturalAccount);
 
-      // Required fields (organization REQUIRED for admin uploads)
+      // YEAR (normalized first!)
+      const yearValue = normalize(rawYear);
+      const yearNum = Number(yearValue);
+
+      if (!yearValue || Number.isNaN(yearNum) || yearNum < 2000) {
+        errors.push({
+          row: rowNumber,
+          error: "Year is required and must be a valid number",
+        });
+        return;
+      }
+
+      //  Required fields
       if (
         !organization ||
         !economicClassification ||
         !sourceOfFunding ||
         !naturalAccount ||
-        rawAppropriation === undefined ||
         rawAppropriation === null ||
-        String(rawAppropriation).trim() === ""
+        rawAppropriation === undefined
       ) {
         errors.push({
           row: rowNumber,
@@ -181,8 +193,8 @@ export const uploadExcelLoadedData = async (req, res, next) => {
         return;
       }
 
-      // Validate appropriation
-      const appropriationNum = Number(String(rawAppropriation).trim());
+      // Appropriation validation
+      const appropriationNum = Number(normalize(rawAppropriation));
       if (Number.isNaN(appropriationNum) || appropriationNum < 0) {
         errors.push({
           row: rowNumber,
@@ -191,14 +203,10 @@ export const uploadExcelLoadedData = async (req, res, next) => {
         return;
       }
 
-      // allotment OPTIONAL
+      // Allotment optional
       let allotmentNum = 0;
-      if (
-        rawAllotment !== undefined &&
-        rawAllotment !== null &&
-        String(rawAllotment).trim() !== ""
-      ) {
-        allotmentNum = Number(String(rawAllotment).trim());
+      if (rawAllotment !== null && rawAllotment !== undefined) {
+        allotmentNum = Number(normalize(rawAllotment));
         if (Number.isNaN(allotmentNum) || allotmentNum < 0) {
           errors.push({
             row: rowNumber,
@@ -209,13 +217,14 @@ export const uploadExcelLoadedData = async (req, res, next) => {
       }
 
       rows.push({
-        organization, // from Excel
+        organization,
         economicClassification,
         sourceOfFunding,
         naturalAccount,
         appropriation: appropriationNum,
         allotment: allotmentNum,
-        userId: user.id, // who uploaded
+        year: yearNum, 
+        userId: user.id,
       });
     });
 
@@ -241,6 +250,8 @@ export const uploadExcelLoadedData = async (req, res, next) => {
 
 
 
+
+
 export const downloadAppropriationTemplate = async (req, res, next) => {
   try {
     const workbook = new ExcelJS.Workbook();
@@ -258,6 +269,7 @@ export const downloadAppropriationTemplate = async (req, res, next) => {
       { header: "naturalAccount", key: "naturalAccount", width: 25 },
       { header: "appropriation", key: "appropriation", width: 15 },
       { header: "allotment", key: "allotment", width: 15 },
+      { header: "year", key: "year", width: 15 },
     ];
 
     // Add a sample row for guidance
@@ -268,6 +280,7 @@ export const downloadAppropriationTemplate = async (req, res, next) => {
       naturalAccount: "123456-Transportation",
       appropriation: 500000.0,
       allotment: 200000.0,
+      year: 2026
     });
 
     // Style header row

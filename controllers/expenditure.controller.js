@@ -55,7 +55,7 @@ export const addExpenditure = async (req, res, next) => {
 
     if (existing) {
       const error = new Error(
-        "Record already exists for this activity and date"
+        "Record already exists for this activity and date",
       );
       error.statusCode = 400;
       throw error;
@@ -84,63 +84,77 @@ export const addExpenditure = async (req, res, next) => {
     const allotment = Number(allocation.allotment || 0);
     const currentRelease = Number(releases || 0);
 
-   const isGoodsAndServicesGOG =
-     economicClassification === "Use of Goods and Services" &&
-     sourceOfFunding === "GOG";
-
+    // const isGoodsAndServicesGOG =
+    //   economicClassification === "Use of Goods and Services" &&
+    //   sourceOfFunding === "GOG";
 
     /* =========================
-   BALANCE LOGIC (DATA-DRIVEN)
+   BALANCE LOGIC (FINAL v2)
 ========================== */
-   let allotmentBalance = 0;
-   const hasAllotment = allotment > 0;
 
-   if (!hasAllotment) {
-     if (currentRelease > appropriation) {
-       throw new Error(
-         "Releases cannot exceed appropriation when there is no allotment"
-       );
-     }
-     allotmentBalance = 0;
-   } else if (isGoodsAndServicesGOG) {
-     const previousActualExpenditure =
-       (await BudgetExpenditure.sum("actualExpenditure", {
-         where: {
-           organization: user.organization,
-           economicClassification,
-           sourceOfFunding,
-           naturalAccount,
-         },
-         transaction: t,
-       })) || 0;
+    let allotmentBalance = 0;
+    let appropriationBalance = 0;
 
-     const currentActual = Number(actualExpenditure || 0);
+    const hasAllotment = allotment > 0;
+    const isGOG = sourceOfFunding === "GOG";
+    const isGoodsAndServices =
+      economicClassification === "Use of Goods and Services";
 
-     allotmentBalance = allotment - (previousActualExpenditure + currentActual);
+    /**
+     * CASE 1:
+     * Use of Goods & Services + GOG
+     * → Allotment Balance (Actual Expenditure based)
+     */
+    if (isGOG && isGoodsAndServices && hasAllotment) {
+      const previousActualExpenditure =
+        (await BudgetExpenditure.sum("actualExpenditure", {
+          where: {
+            organization: user.organization,
+            economicClassification,
+            sourceOfFunding,
+            naturalAccount,
+          },
+          transaction: t,
+        })) || 0;
 
-     if (allotmentBalance < 0) {
-       throw new Error("Actual expenditure exceeds available allotment");
-     }
-   } else {
-     const previousReleases =
-       (await BudgetExpenditure.sum("releases", {
-         where: {
-           organization: user.organization,
-           economicClassification,
-           sourceOfFunding,
-           naturalAccount,
-         },
-         transaction: t,
-       })) || 0;
+      const currentActual = Number(actualExpenditure || 0);
 
-     allotmentBalance = allotment - (previousReleases + currentRelease);
+      allotmentBalance =
+        allotment - (previousActualExpenditure + currentActual);
 
-     if (allotmentBalance < 0) {
-       throw new Error("Releases exceed available allotment balance");
-     }
-   }
+      if (allotmentBalance < 0) {
+        throw new Error("Actual expenditure exceeds available allotment");
+      }
 
+      appropriationBalance = 0;
+    } else {
 
+    /**
+     * CASE 2:
+     * Any other economic class + GOG
+     * OR IGF / DPF
+     * → Appropriation Balance (Release based)
+     */
+      const previousReleases =
+        (await BudgetExpenditure.sum("releases", {
+          where: {
+            organization: user.organization,
+            economicClassification,
+            sourceOfFunding,
+            naturalAccount,
+          },
+          transaction: t,
+        })) || 0;
+
+      appropriationBalance =
+        appropriation - (previousReleases + currentRelease);
+
+      if (appropriationBalance < 0) {
+        throw new Error("Releases exceed available appropriation balance");
+      }
+
+      allotmentBalance = 0;
+    }
 
     /* =========================
        CREATE RECORD
@@ -153,8 +167,8 @@ export const addExpenditure = async (req, res, next) => {
         sourceOfFunding,
         naturalAccount,
         description,
-
         appropriation,
+        appropriationBalance,
         allotment,
         allotmentBalance,
         releases: currentRelease,
@@ -164,7 +178,7 @@ export const addExpenditure = async (req, res, next) => {
         userId: user.id,
         organization: user.organization,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await t.commit();
@@ -179,8 +193,6 @@ export const addExpenditure = async (req, res, next) => {
     next(error);
   }
 };
-
-
 
 // Fetch all expenditure records
 export const getAllExpenditure = async (req, res, next) => {
@@ -228,39 +240,163 @@ export const getAllExpenditure = async (req, res, next) => {
   }
 };
 
-
-
-
-
 // Update expenditure record
 export const updateExpenditure = async (req, res, next) => {
+  const t = await sequelize.transaction();
+
   try {
     const { id } = req.params;
     const updates = req.body;
     const user = req.user;
 
-    const record = await BudgetExpenditure.findByPk(id);
+    /* =========================
+       FETCH RECORD
+    ========================== */
+    const record = await BudgetExpenditure.findByPk(id, { transaction: t });
     if (!record) {
       const error = new Error("Expenditure record not found");
       error.statusCode = 404;
-      return next(error);
+      throw error;
     }
 
-    // Ownership check: Only creator or admin can update
+    /* =========================
+       AUTHORIZATION
+    ========================== */
     if (record.userId !== user.id && user.role !== "admin") {
       const error = new Error("You are not authorized to update this record");
       error.statusCode = 403;
-      return next(error);
+      throw error;
     }
 
-    // Prevent editing reviewed or approved records
     if (record.status === "Reviewed" || record.status === "Approved") {
       const error = new Error("You cannot edit a reviewed or approved record");
       error.statusCode = 400;
-      return next(error);
+      throw error;
     }
 
-    await record.update(updates);
+    /* =========================
+       MERGE OLD + NEW VALUES
+    ========================== */
+    const effectiveValues = {
+      activity: updates.activity ?? record.activity,
+      date: updates.date ?? record.date,
+      economicClassification:
+        updates.economicClassification ?? record.economicClassification,
+      sourceOfFunding: updates.sourceOfFunding ?? record.sourceOfFunding,
+      naturalAccount: updates.naturalAccount ?? record.naturalAccount,
+      description: updates.description ?? record.description,
+      releases: Number(updates.releases ?? record.releases ?? 0),
+      actualExpenditure: Number(
+        updates.actualExpenditure ?? record.actualExpenditure ?? 0,
+      ),
+      actualPayment: Number(updates.actualPayment ?? record.actualPayment ?? 0),
+    };
+
+    /* =========================
+       FETCH ALLOCATION
+    ========================== */
+    const allocation = await LoadedData.findOne({
+      where: {
+        organization: user.organization,
+        economicClassification: effectiveValues.economicClassification,
+        sourceOfFunding: effectiveValues.sourceOfFunding,
+        naturalAccount: effectiveValues.naturalAccount,
+      },
+      transaction: t,
+    });
+
+    if (!allocation) {
+      const error = new Error("No allocation found for this budget line");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const appropriation = Number(allocation.appropriation || 0);
+    const allotment = Number(allocation.allotment || 0);
+
+    /* =========================
+       BALANCE RECOMPUTATION
+    ========================== */
+    let allotmentBalance = 0;
+    let appropriationBalance = 0;
+
+    const hasAllotment = allotment > 0;
+    const isGOG = effectiveValues.sourceOfFunding === "GOG";
+    const isGoodsAndServices =
+      effectiveValues.economicClassification === "Use of Goods and Services";
+
+    /**
+     * CASE 1:
+     * Use of Goods & Services + GOG
+     * → Allotment Balance (Actual Expenditure based)
+     */
+    if (isGOG && isGoodsAndServices && hasAllotment) {
+      const previousActualExpenditure =
+        (await BudgetExpenditure.sum("actualExpenditure", {
+          where: {
+            id: { [Op.ne]: record.id }, // EXCLUDE current record
+            organization: user.organization,
+            economicClassification: effectiveValues.economicClassification,
+            sourceOfFunding: effectiveValues.sourceOfFunding,
+            naturalAccount: effectiveValues.naturalAccount,
+          },
+          transaction: t,
+        })) || 0;
+
+      allotmentBalance =
+        allotment -
+        (previousActualExpenditure + effectiveValues.actualExpenditure);
+
+      if (allotmentBalance < 0) {
+        throw new Error("Actual expenditure exceeds available allotment");
+      }
+
+      appropriationBalance = 0;
+    } else {
+
+    /**
+     * CASE 2:
+     * Any other economic class + GOG
+     * OR IGF / DPF
+     * → Appropriation Balance (Release based)
+     */
+      const previousReleases =
+        (await BudgetExpenditure.sum("releases", {
+          where: {
+            id: { [Op.ne]: record.id }, // EXCLUDE current record
+            organization: user.organization,
+            economicClassification: effectiveValues.economicClassification,
+            sourceOfFunding: effectiveValues.sourceOfFunding,
+            naturalAccount: effectiveValues.naturalAccount,
+          },
+          transaction: t,
+        })) || 0;
+
+      appropriationBalance =
+        appropriation - (previousReleases + effectiveValues.releases);
+
+      if (appropriationBalance < 0) {
+        throw new Error("Releases exceed available appropriation balance");
+      }
+
+      allotmentBalance = 0;
+    }
+
+    /* =========================
+       UPDATE RECORD
+    ========================== */
+    await record.update(
+      {
+        ...effectiveValues,
+        appropriation,
+        allotment,
+        allotmentBalance,
+        appropriationBalance,
+      },
+      { transaction: t },
+    );
+
+    await t.commit();
 
     res.status(200).json({
       success: true,
@@ -268,9 +404,12 @@ export const updateExpenditure = async (req, res, next) => {
       data: record,
     });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };
+
+
 
 
 
@@ -298,7 +437,7 @@ export const deleteExpenditure = async (req, res, next) => {
     // Prevent deleting reviewed or approved records
     if (record.status === "Reviewed" || record.status === "Approved") {
       const error = new Error(
-        "You cannot delete a reviewed or approved record"
+        "You cannot delete a reviewed or approved record",
       );
       error.statusCode = 400;
       return next(error);
@@ -314,8 +453,6 @@ export const deleteExpenditure = async (req, res, next) => {
     next(error);
   }
 };
-
-
 
 // Approve expenditure record (Approver only)
 export const approveExpenditure = async (req, res, next) => {
@@ -346,8 +483,6 @@ export const approveExpenditure = async (req, res, next) => {
     next(error);
   }
 };
-
-
 
 //  Review expenditure record (Reviewer only)
 export const reviewExpenditure = async (req, res, next) => {
@@ -397,4 +532,3 @@ export const reviewExpenditure = async (req, res, next) => {
     next(error);
   }
 };
-

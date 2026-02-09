@@ -39,13 +39,13 @@ const LoadedData = sequelize.define(
       validate: {
         min: 0,
       },
-      year: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
+    },
+    year: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 User.hasMany(LoadedData);

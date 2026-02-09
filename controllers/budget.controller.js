@@ -85,19 +85,14 @@ export const getBudgetValues = async (req, res, next) => {
     const appropriation = Number(allocation.appropriation || 0);
     const allotment = Number(allocation.allotment || 0);
 
-    // NO ALLOTMENT (IGF / DPF)
-    if (allotment === 0) {
-      return res.status(200).json({
-        success: true,
-        data: { appropriation, allotment: 0, balance: 0 },
-      });
-    }
+    const isGOG = fund.trim() === "GOG";
+    const isGoodsAndServices = eco.trim() === "Use of Goods and Services";
 
-    /* =========================
-       USE OF GOODS & SERVICES + GOG
-    ========================== */
-    if (eco === "Use of Goods and Services" && fund === "GOG") {
-      const totalActualExpenditure =
+    /**
+     * CASE 1: UGS + GOG → Allotment-based
+     */
+    if (isGOG && isGoodsAndServices && allotment > 0) {
+      const previousActualExpenditure =
         (await BudgetExpenditure.sum("actualExpenditure", {
           where: {
             organization: user.organization,
@@ -112,16 +107,18 @@ export const getBudgetValues = async (req, res, next) => {
         data: {
           appropriation,
           allotment,
-          balance: allotment - totalActualExpenditure,
-          previousActualExpenditure: totalActualExpenditure,
+          previousActualExpenditure,
+          allotmentBalance: allotment - previousActualExpenditure,
+          appropriationBalance: 0,
+          previousReleases: 0,
         },
       });
     }
 
-    /* =========================
-       DEFAULT (release-based)
-    ========================== */
-    const totalReleases =
+    /**
+     * CASE 2: ALL OTHER CASES → Appropriation-based
+     */
+    const previousReleases =
       (await BudgetExpenditure.sum("releases", {
         where: {
           organization: user.organization,
@@ -131,18 +128,22 @@ export const getBudgetValues = async (req, res, next) => {
         },
       })) || 0;
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         appropriation,
         allotment,
-        balance: allotment - totalReleases,
+        previousReleases,
+        appropriationBalance: appropriation - previousReleases,
+        allotmentBalance: 0,
+        previousActualExpenditure: 0,
       },
     });
   } catch (err) {
     next(err);
   }
 };
+
 
 
 
