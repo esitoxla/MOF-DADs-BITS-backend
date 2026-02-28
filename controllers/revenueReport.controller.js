@@ -119,40 +119,15 @@ export const exportQuarterlyRevenueExcel = async (req, res, next) => {
     const GHS_FORMAT = "#,##0.00";
     const sheet = workbook.addWorksheet("Revenue Report");
 
-    // Set column widths & formats
+    
     sheet.columns = [
-      { header: "REVENUE CATEGORY", key: "category", width: 30 },
-      {
-        header: "PROJECTION",
-        key: "projection",
-        width: 18,
-        style: { numFmt: GHS_FORMAT },
-      },
-      {
-        header: "ACTUAL COLLECTION",
-        key: "actual",
-        width: 18,
-        style: { numFmt: GHS_FORMAT },
-      },
-      {
-        header: "PAYMENT CF",
-        key: "payment",
-        width: 18,
-        style: { numFmt: GHS_FORMAT },
-      },
-      {
-        header: "RETENTION",
-        key: "retention",
-        width: 18,
-        style: { numFmt: GHS_FORMAT },
-      },
-      {
-        header: "PROJECTION DEC",
-        key: "projectionDec",
-        width: 18,
-        style: { numFmt: GHS_FORMAT },
-      },
-      { header: "REMARKS", key: "remarks", width: 30 },
+      { key: "category", width: 30 },
+      { key: "projection", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "actual", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "payment", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "retention", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "projectionDec", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "remarks", width: 30 },
     ];
 
     //Write title and headers

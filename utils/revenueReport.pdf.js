@@ -18,6 +18,14 @@ export const generateRevenuePDF = ({
 
   const period = getQuarterPeriod(year, quarter);
 
+  //Added Stream Error Handling
+  doc.on("error", (err) => {
+    console.error("PDF stream error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "PDF generation failed" });
+    }
+  });
+
   doc.pipe(res);
 
   /* =========================
@@ -40,28 +48,33 @@ export const generateRevenuePDF = ({
     .fontSize(16)
     .text("Summary of Revenue Performance", { align: "center" });
 
+
   /* =========================
      HEADER INFO + LOGO
   ========================== */
-  const headerY = 80;
+  const headerY = 90;
   const leftX = 40;
+  const logoHeaderY = 70;
   const logoX = doc.page.width - 120;
 
   doc
     .font("Helvetica")
-    .fontSize(10)
+    .fontSize(12)
     .text(`DADs: ${user.organization}`, leftX, headerY)
-    .text(`Year: ${year}`, leftX, headerY + 15)
-    .text(`Quarter: Q${quarter}`, leftX, headerY + 30)
-    .text(`Currency: Ghana Cedis (GHS)`, leftX, headerY + 45);
+    .text(
+      `Reporting Period: Q${quarter} (${period.endMonthName} ${year})`,
+      leftX,
+      headerY + 15,
+    )
+    .text(`Currency: Ghana Cedis (GHS)`, leftX, headerY + 30);
 
   try {
-    doc.image(logoPath, logoX, headerY, { width: 90 });
+    doc.image(logoPath, logoX, logoHeaderY, { width: 90, height: 60 });
   } catch (err) {
     console.log("Logo error:", err.message);
   }
 
-  doc.moveDown(4);
+  doc.moveDown(3);
 
   /* =========================
      TABLE
@@ -78,49 +91,48 @@ export const generateRevenuePDF = ({
    TABLE
 ====================================================== */
 
-const drawRevenueTable = (doc, grouped, totals) => {
+const drawRevenueTable = (doc, grouped, totals, period) => {
   let y = doc.y;
 
   const columns = [
-    { key: "category", label: "REVENUE CATEGORIES", width: 100, align: "left" },
+    { key: "category", label: "REVENUE CATEGORIES", width: 90, align: "left" },
 
     {
-      key: "projectionBudget",
-      label: `${period.year} PROJECTION / BUDGET\nB`,
+      key: "projection",
+      label: `${period.year} PROJECTION / BUDGET`,
       width: 70,
     },
 
     {
-      key: "actualCollection",
-      label: `ACTUAL COLLECTION\nAS AT END ${period.endMonthName} ${period.year}\nC = D + E`,
+      key: "actual",
+      label: `ACTUAL COLLECTION AS AT END ${period.endMonthName} ${period.year}`,
       width: 70,
     },
 
     {
-      key: "paymentIntoCF",
-      label: `PAYMENT INTO CF\nAS AT END ${period.endMonthName} ${period.year}\nD = C - E`,
-      width: 70,
+      key: "payment",
+      label: `PAYMENT INTO THE CONSOLIDATED FUND AS AT END ${period.endMonthName} ${period.year}`,
+      width: 90,
     },
 
     {
       key: "retention",
-      label: `RETENTION\nAS AT END ${period.endMonthName} ${period.year}\nE = C - D`,
+      label: `RETENTION AS AT END ${period.endMonthName} ${period.year}`,
       width: 70,
     },
 
     {
-      key: "projectionAtDec",
-      label: `PROJECTION AT\n31 DEC ${period.year}`,
+      key: "projectionDec",
+      label: `PROJECTION AT 31 DEC ${period.year}`,
       width: 70,
     },
 
-    { key: "remarks", label: "REMARKS", width: 80, align: "left" },
+    { key: "remarks", label: "REMARKS", width: 70, align: "left" },
   ];
 
 
   // HEADER
-  drawHeaderRow(doc, y, columns);
-  y += 42;
+  y = drawHeaderRows(doc, y, columns, period);
 
   // BODY
   grouped.forEach((row) => {
@@ -137,23 +149,65 @@ const drawRevenueTable = (doc, grouped, totals) => {
 /* =========================
    HEADER ROW
 ========================= */
-const drawHeaderRow = (doc, y, columns) => {
+const drawHeaderRows = (doc, y, columns, period) => {
   let x = doc.page.margins.left;
 
+  const headerHeight = 70;
+  const formulaHeight = 24;
+
+  // ===============================
+  // ROW 1 – MAIN TITLES
+  // ===============================
   columns.forEach((col) => {
-    doc.rect(x, y, col.width, 42).fillAndStroke("#F3F4F6", "#9CA3AF");
+    doc.rect(x, y, col.width, headerHeight).fillAndStroke("#F3F4F6", "#9CA3AF");
 
     doc
       .fillColor("#000")
       .font("Helvetica-Bold")
       .fontSize(9)
-      .text(col.label, x + 4, y + 10, {
+      .text(col.label.split("\n")[0], x + 4, y + 10, {
         width: col.width - 8,
         align: "center",
       });
 
     x += col.width;
   });
+
+  y += headerHeight;
+  x = doc.page.margins.left;
+
+
+  // ===============================
+  // ROW 2 – FORMULA ROW (A, B, C...)
+  // ===============================
+  const formulaMap = {
+    category: "A",
+    projection: "B",
+    actual: "C = D + E",
+    payment: "D = C - E",
+    retention: "E = C - D",
+    projectionDec: "",
+    remarks: "",
+  };
+
+  columns.forEach((col) => {
+    doc
+      .rect(x, y, col.width, formulaHeight)
+      .fillAndStroke("#F9FAFB", "#9CA3AF");
+
+    doc
+      .fillColor("#000")
+      .font("Helvetica-Bold")
+      .fontSize(8)
+      .text(formulaMap[col.key] || "", x + 4, y + 6, {
+        width: col.width - 8,
+        align: "center",
+      });
+
+    x += col.width;
+  });
+
+  return y + formulaHeight;
 };
 
 /* =========================

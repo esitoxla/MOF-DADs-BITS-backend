@@ -65,25 +65,25 @@ export function generateQuarterlyPDF({
     .text("Summary of Budget Performance by Economic Classification", 40, 40);
 
   // The Y where DADs and LOGO should BOTH start
-  const headerY = 70; // Adjust this number for spacing
+  const headerY = 80; // Adjust this number for spacing
   const leftX = 40;
+  const logoHeaderY= 70;
   const logoX = doc.page.width - 120; // Right side of page
 
   // LEFT DETAILS (start at headerY)
   doc
     //Mirrors what the UI header shows
     .font("Helvetica")
-    .fontSize(10)
+    .fontSize(12)
     .text(`DADs: ${user.organization}`, leftX, headerY)
-    .text(`Year: ${year}`, leftX, headerY + 15)
-    .text(`Quarter: Q${quarter}`, leftX, headerY + 30)
-    .text(`Source of Funding: ${sourceOfFunding}`, leftX, headerY + 45)
-    .text(`Currency: Ghana Cedis (GHS)`, leftX, headerY + 60);
+    .text(`Reporting Period: Q${quarter} (${period.endMonthName} ${year})`, leftX, headerY + 15)
+    .text(`Source of Funding: ${sourceOfFunding}`, leftX, headerY + 30)
+    .text(`Currency: Ghana Cedis (GHS)`, leftX, headerY + 45);
 
   // RIGHT LOGO, same height as "DADs:"
   if (logoPath) {
     try {
-      doc.image(logoPath, logoX, headerY, { width: 90 });
+      doc.image(logoPath, logoX, logoHeaderY, { width: 90, height: 60 });
     } catch (err) {
       console.log("Logo error:", err.message);
     }

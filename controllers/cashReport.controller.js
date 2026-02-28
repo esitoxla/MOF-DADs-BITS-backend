@@ -1,4 +1,7 @@
 import User from "../models/users.js";
+import Cash from "../models/cash.model.js";
+import ExcelJS from "exceljs";
+import { Op } from "sequelize";
 import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
 import {
   getCashPositionData,
@@ -6,17 +9,34 @@ import {
   totalCashPositionSummary,
 } from "../services/cashReport.service.js";
 import { generateCashPositionPDF } from "../utils/cashPositionReport.pdf.js";
+import path from "path";
+import { fileURLToPath } from "url";
+import { getDetailedCashData } from "../services/detailedCashReport.service.js";
+import { getQuarterDateRange } from "../utils/cashDateQuarter.js";
 
 export const getCashPositionReport = async (req, res, next) => {
   try {
-    const { as_at_date, organization } = req.query;
+    const { year, quarter, organization } = req.query;
 
-    if (!as_at_date) {
+    const getQuarterDateRange = (year, quarter) => {
+      const ranges = {
+        1: { start: `${year}-01-01`, end: `${year}-03-31` },
+        2: { start: `${year}-04-01`, end: `${year}-06-30` },
+        3: { start: `${year}-07-01`, end: `${year}-09-30` },
+        4: { start: `${year}-10-01`, end: `${year}-12-31` },
+      };
+
+      return ranges[quarter];
+    };
+
+    if (!year || !quarter) {
       return res.status(400).json({
         success: false,
-        message: "as_at_date is required",
+        message: "Year and quarter are required",
       });
     }
+
+    const { start, end } = getQuarterDateRange(year, quarter);
 
     const user = await User.findByPk(req.user.id);
 
@@ -33,8 +53,9 @@ export const getCashPositionReport = async (req, res, next) => {
     });
 
     const raw = await getCashPositionData({
-      as_at_date,
-      organization: resolvedOrg, // null = ALL
+      start_date: start,
+      end_date: end,
+      organization: resolvedOrg,
     });
 
     const grouped = groupCashPositionData(raw);
@@ -42,7 +63,8 @@ export const getCashPositionReport = async (req, res, next) => {
 
     res.json({
       success: true,
-      as_at_date,
+      year,
+      quarter,
       organization: isAll ? "ALL" : resolvedOrg,
       records: grouped,
       totals,
@@ -54,14 +76,16 @@ export const getCashPositionReport = async (req, res, next) => {
 
 export const exportCashPositionExcel = async (req, res, next) => {
   try {
-    const { as_at_date, organization } = req.query;
+    const { year, quarter, organization } = req.query;
 
-    if (!as_at_date) {
+    if (!year || !quarter) {
       return res.status(400).json({
         success: false,
-        message: "as_at_date is required",
+        message: "Year and quarter are required",
       });
     }
+
+    const { start, end } = getQuarterDateRange(year, quarter);
 
     const user = await User.findByPk(req.user.id);
 
@@ -77,48 +101,74 @@ export const exportCashPositionExcel = async (req, res, next) => {
       organization,
     });
 
+    // ===== Fetch Data Between Dates =====
     const raw = await getCashPositionData({
-      as_at_date,
+      start_date: start,
+      end_date: end,
       organization: resolvedOrg,
     });
 
     const grouped = groupCashPositionData(raw);
     const totals = totalCashPositionSummary(grouped);
 
+    // ===== Excel Setup =====
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Cash Position");
 
-    const MONEY = "#,##0.00";
+    const GHS_FORMAT = "#,##0.00";
 
+    // Define columns WITHOUT headers
     sheet.columns = [
-      { header: "ACCOUNT NAME", key: "account_name", width: 30 },
-      { header: "GHS", key: "GHS", width: 18, style: { numFmt: MONEY } },
-      { header: "EUR", key: "EUR", width: 18, style: { numFmt: MONEY } },
-      { header: "GBP", key: "GBP", width: 18, style: { numFmt: MONEY } },
-      { header: "USD", key: "USD", width: 18, style: { numFmt: MONEY } },
+      { key: "account_name", width: 30 },
+      { key: "GHS", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "EUR", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "GBP", width: 18, style: { numFmt: GHS_FORMAT } },
+      { key: "USD", width: 18, style: { numFmt: GHS_FORMAT } },
     ];
 
-    sheet.addRow([`Cash Position as at ${as_at_date}`]).font = {
-      bold: true,
-      size: 14,
-    };
+    // ===== TITLE =====
+    const titleRow = sheet.addRow([
+      `MDAs Cash Position as at end Q${quarter} ${year}`,
+    ]);
+    titleRow.font = { bold: true, size: 14 };
 
-    sheet.addRow(sheet.columns.map((c) => c.header)).font = { bold: true };
+    // Merge title across columns
+    sheet.mergeCells(`A${titleRow.number}:E${titleRow.number}`);
 
-    grouped.forEach((row) => sheet.addRow(row));
 
-    sheet.addRow({
-      account_name: "TOTAL",
+    // ===== HEADER ROW =====
+    const headerRow = sheet.addRow([
+      "ACCOUNT NAME",
+      "GHS",
+      "EUR",
+      "GBP",
+      "USD",
+    ]);
+
+    headerRow.font = { bold: true };
+
+    // ===== DATA ROWS =====
+    grouped.forEach((row) => {
+      sheet.addRow(row);
+    });
+
+    // ===== TOTAL ROW =====
+    const totalRow = sheet.addRow({
+      account_name: "TOTAL CASH POSITION",
       ...totals,
-    }).font = { bold: true };
+    });
 
+    totalRow.font = { bold: true, color: { argb: "FF166534" } };
+
+    // ===== Response Headers =====
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
+
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="Cash_Position_${as_at_date}.xlsx"`,
+      `attachment; filename="Cash_Position_Q${quarter}_${year}.xlsx"`,
     );
 
     await workbook.xlsx.write(res);
@@ -128,18 +178,22 @@ export const exportCashPositionExcel = async (req, res, next) => {
   }
 };
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const exportCashPositionPDF = async (req, res, next) => {
   try {
-    const { as_at_date, organization } = req.query;
+    const { year, quarter, organization } = req.query;
 
-    if (!as_at_date) {
-      return res
-        .status(400)
-        .json({ success: false, message: "as_at_date is required" });
+    if (!year || !quarter) {
+      return res.status(400).json({
+        success: false,
+        message: "Year and quarter are required",
+      });
     }
+
+    const { start, end } = getQuarterDateRange(year, quarter);
 
     const user = await User.findByPk(req.user.id);
 
@@ -156,7 +210,8 @@ export const exportCashPositionPDF = async (req, res, next) => {
     });
 
     const raw = await getCashPositionData({
-      as_at_date,
+      start_date: start,
+      end_date: end,
       organization: resolvedOrg,
     });
 
@@ -168,20 +223,65 @@ export const exportCashPositionPDF = async (req, res, next) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="Cash_Position_${as_at_date}.pdf"`,
+      `attachment; filename="Cash_Position_Q${quarter}_${year}.pdf"`,
     );
 
     generateCashPositionPDF({
       rows,
       totals,
-      as_at_date,
-      organization: isAll ? "ALL" : resolvedOrg,
+      year,
+      quarter,
       logoPath,
+      organization: isAll ? "ALL" : resolvedOrg,
       res,
+    });
+  } catch (err) {
+    if (res.headersSent) {
+      console.error("Error after PDF stream started:", err);
+      return;
+    }
+    next(err);
+  }
+};
+
+export const getDetailedCashReport = async (req, res, next) => {
+  try {
+    const { year, quarter, organization } = req.query;
+    const user = req.user;
+
+    if (!year || !quarter) {
+      return res.status(400).json({
+        success: false,
+        message: "Year and quarter are required",
+      });
+    }
+
+    if (user.role !== "admin" && organization === "ALL") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access all organizations",
+      });
+    }
+
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
+      user,
+      organization,
+    });
+
+    const records = await getDetailedCashData({
+      year,
+      quarter,
+      organization: resolvedOrg,
+    });
+
+    res.json({
+      success: true,
+      year,
+      quarter,
+      organization: isAll ? "ALL" : resolvedOrg,
+      records,
     });
   } catch (err) {
     next(err);
   }
 };
-
-
