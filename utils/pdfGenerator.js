@@ -12,7 +12,7 @@ export function generateQuarterlyPDF({
   res, // writable HTTP stream
 }) {
   //PDF document initialization
-  const doc = new PDFDocument({ size: "A4", margin: 40 });
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
 
   const period = getQuarterPeriod(year, quarter);
 
@@ -31,8 +31,16 @@ export function generateQuarterlyPDF({
       actualExpenditure: 0,
       actualPayments: 0,
       projection: 0,
-    }
+    },
   );
+
+  const generatedDate = new Date().toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   // The controller already set them. Just stream the PDF.
   //Streams the PDF directly to the HTTP response
@@ -58,7 +66,7 @@ export function generateQuarterlyPDF({
   // ===========================
 
   // Title (takes full width)
-  
+
   doc
     .font("Helvetica-Bold")
     .fontSize(16)
@@ -67,7 +75,7 @@ export function generateQuarterlyPDF({
   // The Y where DADs and LOGO should BOTH start
   const headerY = 80; // Adjust this number for spacing
   const leftX = 40;
-  const logoHeaderY= 70;
+  const logoHeaderY = 70;
   const logoX = doc.page.width - 120; // Right side of page
 
   // LEFT DETAILS (start at headerY)
@@ -76,7 +84,11 @@ export function generateQuarterlyPDF({
     .font("Helvetica")
     .fontSize(12)
     .text(`DADs: ${user.organization}`, leftX, headerY)
-    .text(`Reporting Period: Q${quarter} (${period.endMonthName} ${year})`, leftX, headerY + 15)
+    .text(
+      `Reporting Period: Q${quarter} (${period.endMonthName} ${year})`,
+      leftX,
+      headerY + 15,
+    )
     .text(`Source of Funding: ${sourceOfFunding}`, leftX, headerY + 30)
     .text(`Currency: Ghana Cedis (GHS)`, leftX, headerY + 45);
 
@@ -103,7 +115,7 @@ export function generateQuarterlyPDF({
     height,
     text,
     fontOptions = {},
-    align = "left"
+    align = "left",
   ) {
     // Border
     doc.rect(x, y, width, height).strokeColor("#D1D5DB").stroke(); // light gray border
@@ -196,7 +208,6 @@ export function generateQuarterlyPDF({
       Number(item.projection || 0).toLocaleString(),
     ];
 
-
     values.forEach((val, i) => {
       const width = Object.values(colWidths)[i];
       drawCell(
@@ -206,7 +217,7 @@ export function generateQuarterlyPDF({
         22,
         val,
         { font: "Helvetica-Bold", size: 10 },
-        i === 0 ? "left" : "right"
+        i === 0 ? "left" : "right",
       );
       x += width;
     });
@@ -218,15 +229,14 @@ export function generateQuarterlyPDF({
   function drawSubRow(b, y) {
     let x = tableStartX;
 
-   const values = [
-     "   " + b.source,
-     Number(b.totalBudget || 0).toLocaleString(),
-     Number(b.amountReleased || 0).toLocaleString(),
-     Number(b.actualExpenditure || 0).toLocaleString(),
-     Number(b.actualPayments || 0).toLocaleString(),
-     Number(b.projection || 0).toLocaleString(),
-   ];
-
+    const values = [
+      "   " + b.source,
+      Number(b.totalBudget || 0).toLocaleString(),
+      Number(b.amountReleased || 0).toLocaleString(),
+      Number(b.actualExpenditure || 0).toLocaleString(),
+      Number(b.actualPayments || 0).toLocaleString(),
+      Number(b.projection || 0).toLocaleString(),
+    ];
 
     values.forEach((val, i) => {
       const width = Object.values(colWidths)[i];
@@ -237,7 +247,7 @@ export function generateQuarterlyPDF({
         20,
         val,
         { font: "Helvetica-Oblique", size: 9 },
-        i === 0 ? "left" : "right"
+        i === 0 ? "left" : "right",
       );
       x += width;
     });
@@ -259,7 +269,6 @@ export function generateQuarterlyPDF({
       Number(totals.actualPayments || 0).toLocaleString(),
       Number(totals.projection || 0).toLocaleString(),
     ];
-
 
     values.forEach((val, i) => {
       const width = Object.values(colWidths)[i];
@@ -288,9 +297,34 @@ export function generateQuarterlyPDF({
 
   yPosition = drawTotalRow(totals, yPosition);
 
+  // ===========================
+  // FOOTER (Generated Date + Page Numbers)
+  // ===========================
+
+  const range = doc.bufferedPageRange(); // get total pages
+
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(i);
+
+    // Check if page has meaningful content
+    if (doc.page.content && doc.page.content.length > 0) {
+      const pageBottom = doc.page.height - 30;
+
+      // Left side: Generated date
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor("gray")
+        .text(`Generated on: ${generatedDate}`, 40, pageBottom, {
+          align: "left",
+        });
+
+      // Right side: Page number
+      doc.text(`Page ${i + 1} of ${range.count}`, 0, pageBottom, {
+        align: "right",
+      });
+    }
+  }
+
   doc.end();
 }
-
-
-
-
