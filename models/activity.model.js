@@ -16,6 +16,7 @@ import User from "./users.js";
       },
     },
     {
+      tableName: "activities",
       timestamps: true,
       indexes: [
         {
