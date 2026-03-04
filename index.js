@@ -35,6 +35,11 @@ app.use(
 
 app.use(cookieParser());
 
+app.use((req, res, next) => {
+  console.log("Incoming request:", req.method, req.originalUrl);
+  next();
+});
+
 //routes
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
