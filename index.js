@@ -16,6 +16,7 @@ import appropriationRoute from "./routes/appropriation.route.js";
 import cashRoute from "./routes/cash.route.js";
 import cashReportRoute from "./routes/cashReport.route.js";
 import activityRoute from "./routes/activity.route.js";
+import reallocationRoute from "./routes/reallocation.route.js";
 
 const PORT = process.env.PORT || 7005;
 
@@ -48,6 +49,7 @@ app.use("/api/appropriation", appropriationRoute);
 app.use("/api/cash", cashRoute);
 app.use("/api/cashReport", cashReportRoute);
 app.use("/api/activity", activityRoute);
+app.use("/api/reallocation", reallocationRoute);
 
 //middleware
 app.use(notFound);

@@ -1,7 +1,7 @@
 export async function up(queryInterface, Sequelize) {
   await queryInterface.addColumn("activities", "userId", {
     type: Sequelize.INTEGER,
-    allowNull: false,
+    allowNull: true,
     references: {
       model: "Users",
       key: "id",
