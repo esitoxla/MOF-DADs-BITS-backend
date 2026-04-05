@@ -59,7 +59,7 @@ export async function up(queryInterface, Sequelize) {
       userId: {
         type: Sequelize.INTEGER,
         references: {
-          model: "Users",
+          model: "users",
           key: "id",
         },
         onUpdate: "CASCADE",
