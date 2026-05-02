@@ -8,7 +8,7 @@ import ExcelJS from "exceljs";
 import User from "../models/users.js";
 import path from "path";
 import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
-import { generateReallocationSummaryPDF } from "../utils/ReallocationReport.pdf.js";
+import { generateReallocationSummaryPDF } from "../utils/reallocationReport.pdf.js";
 
 // =========================
 // GET SUMMARY REPORT
