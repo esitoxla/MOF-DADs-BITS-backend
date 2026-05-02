@@ -3,8 +3,8 @@ import User from "../models/users.js";
 import sequelize from "../config/database.js";
 
 export const addReallocation = async (req, res, next) => {
-    //declare variable later a value will be assigned to it
-      let reallocationTransaction;
+  //declare variable later a value will be assigned to it
+  let reallocationTransaction;
   try {
     const {
       activity,
@@ -13,13 +13,10 @@ export const addReallocation = async (req, res, next) => {
       sourceOfFunding,
       naturalAccount,
       description,
-      releases,
+      amountReallocated,
+      amountReleased,
       actualExpenditure,
       actualPayment,
-      appropriation,
-      appropriationBalance,
-      allotment,
-      allotmentBalance,
       organization,
     } = req.body;
 
@@ -45,9 +42,10 @@ export const addReallocation = async (req, res, next) => {
       error.statusCode = 400;
       throw error;
     }
+    
 
     // Open transaction only after validation passes
-    const reallocationTransaction = await sequelize.transaction();
+    reallocationTransaction = await sequelize.transaction();
 
     /* =========================
        DUPLICATE CHECK
@@ -73,11 +71,8 @@ export const addReallocation = async (req, res, next) => {
         sourceOfFunding,
         naturalAccount,
         description,
-        appropriation,
-        appropriationBalance,
-        allotment,
-        allotmentBalance,
-        releases,
+        amountReallocated,
+        amountReleased,
         actualExpenditure,
         actualPayment,
         userId: user.id,
@@ -94,62 +89,61 @@ export const addReallocation = async (req, res, next) => {
       reallocation,
     });
   } catch (error) {
-     if (reallocationTransaction) {
-       await reallocationTransaction.rollback();
-     }
+    if (reallocationTransaction) {
+      await reallocationTransaction.rollback();
+    }
     next(error);
   }
 };
 
 //Fetch all records
 export const getAllReallocation = async (req, res, next) => {
-    try {
-      const user = req.user;
+  try {
+    const user = req.user;
 
-      // Ensure the user is authenticated
-      if (!user) {
-        const error = new Error("Unauthorized: User not found.");
-        error.statusCode = 401;
-        return next(error);
-      }
-
-      // Base filter
-      let whereClause = {};
-
-      // Data entry users should only see their own records
-      if (user.role === "data_entry") {
-        whereClause.userId = user.id;
-      }
-
-      // Build include clause dynamically
-      const include = [
-        {
-          model: User,
-          attributes: ["id", "name", "organization", "role"],
-          required: false, // ensures we join User table
-          where:
-            user.role === "admin"
-              ? undefined // admin sees all
-              : { organization: user.organization }, // filter by organization
-        },
-      ];
-
-      const records = await Reallocation.findAll({
-        where: whereClause,
-        include,
-        order: [["createdAt", "DESC"]],
-      });
-
-      res.status(200).json({
-        success: true,
-        count: records.length,
-        data: records,
-      });
-    } catch (error) {
-      next(error)
+    // Ensure the user is authenticated
+    if (!user) {
+      const error = new Error("Unauthorized: User not found.");
+      error.statusCode = 401;
+      return next(error);
     }
-}
 
+    // Base filter
+    let whereClause = {};
+
+    // Data entry users should only see their own records
+    if (user.role === "data_entry") {
+      whereClause.userId = user.id;
+    }
+
+    // Build include clause dynamically
+    const include = [
+      {
+        model: User,
+        attributes: ["id", "name", "organization", "role"],
+        required: false, // ensures we join User table
+        where:
+          user.role === "admin"
+            ? undefined // admin sees all
+            : { organization: user.organization }, // filter by organization
+      },
+    ];
+
+    const records = await Reallocation.findAll({
+      where: whereClause,
+      include,
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      count: records.length,
+      data: records,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // Update record
 export const updateReallocation = async (req, res, next) => {
@@ -189,25 +183,21 @@ export const updateReallocation = async (req, res, next) => {
     // =========================
     // MERGE VALUES FIRST
     // =========================
-    const appropriation = Number(
-      updates.appropriation ?? record.appropriation ?? 0,
+    const amountReallocated = Number(
+      updates.amountReallocated ?? record.amountReallocated ?? 0,
     );
 
     const actualExpenditure = Number(
       updates.actualExpenditure ?? record.actualExpenditure ?? 0,
     );
 
-    const allotment = Number(updates.allotment ?? record.allotment ?? 0);
+    const amountReleased = Number(
+      updates.amountReleased ?? record.amountReleased ?? 0,
+    );
 
     const actualPayment = Number(
       updates.actualPayment ?? record.actualPayment ?? 0,
     );
-
-    // =========================
-    // COMPUTE BALANCES
-    // =========================
-    const appropriationBalance = appropriation - actualExpenditure;
-    const allotmentBalance = allotment - actualPayment;
 
     // =========================
     // FINAL UPDATE OBJECT
@@ -220,14 +210,8 @@ export const updateReallocation = async (req, res, next) => {
       sourceOfFunding: updates.sourceOfFunding ?? record.sourceOfFunding,
       naturalAccount: updates.naturalAccount ?? record.naturalAccount,
       description: updates.description ?? record.description,
-
-      appropriation,
-      appropriationBalance,
-
-      allotment,
-      allotmentBalance,
-
-      releases: Number(updates.releases ?? record.releases ?? 0),
+      amountReallocated,
+      amountReleased,
       actualExpenditure,
       actualPayment,
     };
@@ -244,7 +228,6 @@ export const updateReallocation = async (req, res, next) => {
     next(error);
   }
 };
-
 
 // Delete Reallocation record
 export const deleteReallocation = async (req, res, next) => {
@@ -292,9 +275,6 @@ export const deleteReallocation = async (req, res, next) => {
     next(error);
   }
 };
-
-
-
 
 //  Review Reallocation record (Reviewer only)
 export const reviewReallocation = async (req, res, next) => {
@@ -345,9 +325,6 @@ export const reviewReallocation = async (req, res, next) => {
   }
 };
 
-
-
-
 // Approve Reallocation record (Approver only)
 export const approveReallocation = async (req, res, next) => {
   try {
@@ -381,7 +358,7 @@ export const approveReallocation = async (req, res, next) => {
       return next(error);
     }
 
-      //Optional: prevent self-approval
+    //Optional: prevent self-approval
     // if (record.userId === user.id) {
     //   const error = new Error("You cannot approve your own record");
     //   error.statusCode = 400;

@@ -38,40 +38,17 @@ const Reallocation = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    appropriation: {
+    amountReallocated: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: false,
-      validate: {
-        min: 0, // ensures value is 0 or greater
-      },
+      validate: { min: 0 },
     },
-    appropriationBalance: {
-      type: DataTypes.DECIMAL(15, 2),
-      allowNull: false,
-      defaultValue: 0,
-    },
-
-    allotment: {
-      type: DataTypes.DECIMAL(15, 2),
-      allowNull: false,
-      validate: {
-        min: 0,
-      },
-    },
-    allotmentBalance: {
-      type: DataTypes.DECIMAL(15, 2),
-      allowNull: false,
-      validate: {
-        min: 0,
-      },
-    },
-    releases: {
+    amountReleased: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
-      validate: {
-        min: 0,
-      },
+      validate: { min: 0 },
     },
+
     actualExpenditure: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
@@ -126,10 +103,7 @@ const Reallocation = sequelize.define(
       allowNull: true,
     },
   },
-  { timestamps: true ,
-    tableName: "reallocation", 
-    freezeTableName: true,
-  },
+  { timestamps: true, tableName: "reallocation", freezeTableName: true },
 );
 
 User.hasMany(Reallocation);

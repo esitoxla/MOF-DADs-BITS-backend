@@ -17,6 +17,8 @@ import cashRoute from "./routes/cash.route.js";
 import cashReportRoute from "./routes/cashReport.route.js";
 import activityRoute from "./routes/activity.route.js";
 import reallocationRoute from "./routes/reallocation.route.js";
+import naturalAccountRoute from "./routes/naturalAccount.route.js";
+import reallocationReportRoute from "./routes/reallocationReport.route.js";
 
 const PORT = process.env.PORT || 7005;
 
@@ -50,6 +52,8 @@ app.use("/api/cash", cashRoute);
 app.use("/api/cashReport", cashReportRoute);
 app.use("/api/activity", activityRoute);
 app.use("/api/reallocation", reallocationRoute);
+app.use("/api/naturalAccount", naturalAccountRoute);
+app.use("/api/reallocationReport", reallocationReportRoute);
 
 //middleware
 app.use(notFound);
