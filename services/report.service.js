@@ -22,7 +22,7 @@ export async function getQuarterlyReportData({
   const [start, end] = quarters[quarter];
 
   const where = {
-    createdAt: { [Op.between]: [start, end] }, // 
+    date: { [Op.between]: [start, end] }, 
   };
 
   if (sourceOfFunding !== "ALL") {
