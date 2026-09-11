@@ -45,7 +45,9 @@ const LoadedData = sequelize.define(
       allowNull: false,
     },
   },
-  { timestamps: true },
+  { tableName: 'loadeddata',
+    timestamps: true 
+  },
 );
 
 User.hasMany(LoadedData);

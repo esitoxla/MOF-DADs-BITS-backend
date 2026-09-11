@@ -95,6 +95,7 @@ const Revenue = sequelize.define(
     },
   },
   {
+    tableName: 'revenues',
     timestamps: true,
   }
 );

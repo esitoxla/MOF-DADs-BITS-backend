@@ -19,6 +19,7 @@ import activityRoute from "./routes/activity.route.js";
 import reallocationRoute from "./routes/reallocation.route.js";
 import naturalAccountRoute from "./routes/naturalAccount.route.js";
 import reallocationReportRoute from "./routes/reallocationReport.route.js";
+import analyticsRoute from "./routes/analytics.route.js";
 
 const PORT = process.env.PORT || 7005;
 
@@ -54,6 +55,7 @@ app.use("/api/activity", activityRoute);
 app.use("/api/reallocation", reallocationRoute);
 app.use("/api/naturalAccount", naturalAccountRoute);
 app.use("/api/reallocationReport", reallocationReportRoute);
+app.use("/api/analytics", analyticsRoute);
 
 //middleware
 app.use(notFound);
