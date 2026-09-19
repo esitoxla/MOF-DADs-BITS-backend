@@ -1,6 +1,7 @@
 import Revenue from "../models/revenue.model.js";
 import User from "../models/users.js";
 import { organizationRetentionRate } from "../data/organizationRetentionRate.js";
+import { notifyRole } from "../utils/notify.js";
 
 /**
  * Helper to compute retention + payment from C and rate
@@ -111,6 +112,20 @@ export const addRevenue = async (req, res, next) => {
       status: "Pending",
     });
 
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "reviewer",
+        actorId: user.id,
+        entityType: "revenue",
+        entityId: revenue.id,
+        event: "created",
+        message: `${user.name} submitted a new ${revenue.revenue_category} revenue record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify reviewers of new revenue record:", notifyError);
+    }
+
     res.status(201).json({
       success: true,
       message: "Revenue record added successfully",
@@ -135,15 +150,17 @@ export const getAllRevenue = async (req, res, next) => {
       whereClause.user_id = user.id;
     }
 
+    // Everyone except admin is scoped to their own organization.
+    // Filtering directly on Revenue.organization (not via the User include)
+    // so it applies as a real WHERE on the parent query regardless of join type.
+    if (user.role !== "admin") {
+      whereClause.organization = user.organization;
+    }
+
     const include = [
       {
         model: User,
         attributes: ["id", "name", "organization", "role"],
-        required: false,
-        where:
-          user.role === "admin"
-            ? undefined
-            : { organization: user.organization },
       },
     ];
 
@@ -342,6 +359,20 @@ export const reviewRevenue = async (req, res, next) => {
     record.reviewComment = reviewComment || null;
 
     await record.save();
+
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "approver",
+        actorId: user.id,
+        entityType: "revenue",
+        entityId: record.id,
+        event: "reviewed",
+        message: `${user.name} reviewed a revenue record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify approvers of reviewed revenue record:", notifyError);
+    }
 
     res.status(200).json({
       success: true,

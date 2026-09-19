@@ -1,5 +1,6 @@
 import Cash from "../models/cash.model.js";
 import User from "../models/users.js";
+import { notifyRole } from "../utils/notify.js";
 
 export const addCashPosition = async (req, res, next) => {
   try {
@@ -44,6 +45,20 @@ export const addCashPosition = async (req, res, next) => {
       status: "Pending",
     });
 
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "reviewer",
+        actorId: user.id,
+        entityType: "cash",
+        entityId: record.id,
+        event: "created",
+        message: `${user.name} submitted a new cash position`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify reviewers of new cash position:", notifyError);
+    }
+
     res.status(201).json({
       success: true,
       message: "Cash position added successfully",
@@ -64,15 +79,15 @@ export const getAllCashPositions = async (req, res, next) => {
       whereClause.user_id = user.id;
     }
 
+    // Everyone except admin is scoped to their own organization
+    if (user.role !== "admin") {
+      whereClause.organization = user.organization;
+    }
+
     const include = [
       {
         model: User,
         attributes: ["id", "name", "organization", "role"],
-        required: false,
-        where:
-          user.role === "admin"
-            ? undefined
-            : { organization: user.organization },
       },
     ];
 
@@ -206,6 +221,20 @@ export const reviewCashPosition = async (req, res, next) => {
     cash.reviewComment = reviewComment || null;
 
     await cash.save();
+
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "approver",
+        actorId: user.id,
+        entityType: "cash",
+        entityId: cash.id,
+        event: "reviewed",
+        message: `${user.name} reviewed a cash position`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify approvers of reviewed cash position:", notifyError);
+    }
 
     res.status(200).json({
       success: true,

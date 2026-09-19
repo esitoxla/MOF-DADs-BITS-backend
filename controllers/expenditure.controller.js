@@ -1,7 +1,9 @@
 import BudgetExpenditure from "../models/expenditure.model.js";
 import User from "../models/users.js";
 import LoadedData from "../models/loadedData.js";
+import { Op } from "sequelize";
 import sequelize from "../config/database.js";
+import { notifyRole } from "../utils/notify.js";
 
 export const addExpenditure = async (req, res, next) => {
   const t = await sequelize.transaction();
@@ -183,6 +185,20 @@ export const addExpenditure = async (req, res, next) => {
 
     await t.commit();
 
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "reviewer",
+        actorId: user.id,
+        entityType: "expenditure",
+        entityId: expenditure.id,
+        event: "created",
+        message: `${user.name} submitted a new expenditure record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify reviewers of new expenditure record:", notifyError);
+    }
+
     res.status(201).json({
       success: true,
       message: "Expenditure record added successfully",
@@ -207,16 +223,15 @@ export const getAllExpenditure = async (req, res, next) => {
       whereClause.userId = user.id;
     }
 
-    // Build include clause dynamically
+    // Everyone except admin is scoped to their own organization
+    if (user.role !== "admin") {
+      whereClause.organization = user.organization;
+    }
+
     const include = [
       {
         model: User,
         attributes: ["id", "name", "organization", "role"],
-        required: false, // ensures we join User table
-        where:
-          user.role === "admin"
-            ? undefined // admin sees all
-            : { organization: user.organization }, // filter by organization
       },
     ];
 
@@ -521,6 +536,20 @@ export const reviewExpenditure = async (req, res, next) => {
     record.reviewComment = reviewComment || null;
 
     await record.save();
+
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "approver",
+        actorId: user.id,
+        entityType: "expenditure",
+        entityId: record.id,
+        event: "reviewed",
+        message: `${user.name} reviewed an expenditure record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify approvers of reviewed expenditure record:", notifyError);
+    }
 
     // Send back updated record
     res.status(200).json({

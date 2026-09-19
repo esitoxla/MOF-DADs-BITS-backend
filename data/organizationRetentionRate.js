@@ -1,4 +1,15 @@
 export const organizationRetentionRate = {
-  "MOF": 25,
+  MOF: 25,
+  "Finance Headquarters": 25,
   "Controller and Acct. Generals Dept": 61,
+  "Statistical Service": 58,
+  "Public Procurement Authority": 47,
+  "Institute of Accountancy Training": 39,
+  "Securities and Exchange Commission": 33,
+  "Ghana Revenue Authority": 72,
+  "Independent Tax Appeals Board (ITAB)": 28,
+  "Financial Intelligence Centre": 44,
+  "State Interest and Governance Authority": 36,
+  "Internal Audit Agency": 52,
+  "National Pensions and Regulatory Authority": 41,
 };

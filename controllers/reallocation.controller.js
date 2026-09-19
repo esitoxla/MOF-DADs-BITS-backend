@@ -1,6 +1,7 @@
 import Reallocation from "../models/reallocation.model.js";
 import User from "../models/users.js";
 import sequelize from "../config/database.js";
+import { notifyRole } from "../utils/notify.js";
 
 export const addReallocation = async (req, res, next) => {
   //declare variable later a value will be assigned to it
@@ -83,6 +84,20 @@ export const addReallocation = async (req, res, next) => {
 
     await reallocationTransaction.commit();
 
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "reviewer",
+        actorId: user.id,
+        entityType: "reallocation",
+        entityId: reallocation.id,
+        event: "created",
+        message: `${user.name} submitted a new reallocation record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify reviewers of new reallocation record:", notifyError);
+    }
+
     res.status(201).json({
       success: true,
       message: "Reallocation record added successfully",
@@ -116,16 +131,15 @@ export const getAllReallocation = async (req, res, next) => {
       whereClause.userId = user.id;
     }
 
-    // Build include clause dynamically
+    // Everyone except admin is scoped to their own organization
+    if (user.role !== "admin") {
+      whereClause.organization = user.organization;
+    }
+
     const include = [
       {
         model: User,
         attributes: ["id", "name", "organization", "role"],
-        required: false, // ensures we join User table
-        where:
-          user.role === "admin"
-            ? undefined // admin sees all
-            : { organization: user.organization }, // filter by organization
       },
     ];
 
@@ -313,6 +327,20 @@ export const reviewReallocation = async (req, res, next) => {
     record.reviewComment = reviewComment || null;
 
     await record.save();
+
+    try {
+      await notifyRole({
+        organization: user.organization,
+        role: "approver",
+        actorId: user.id,
+        entityType: "reallocation",
+        entityId: record.id,
+        event: "reviewed",
+        message: `${user.name} reviewed a reallocation record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify approvers of reviewed reallocation record:", notifyError);
+    }
 
     // Send back updated record
     res.status(200).json({
