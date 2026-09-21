@@ -16,7 +16,7 @@ import { getQuarterDateRange } from "../utils/cashDateQuarter.js";
 
 export const getCashPositionReport = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
 
     const getQuarterDateRange = (year, quarter) => {
       const ranges = {
@@ -56,6 +56,7 @@ export const getCashPositionReport = async (req, res, next) => {
       start_date: start,
       end_date: end,
       organization: resolvedOrg,
+      status,
     });
 
     const grouped = groupCashPositionData(raw);
@@ -76,7 +77,7 @@ export const getCashPositionReport = async (req, res, next) => {
 
 export const exportCashPositionExcel = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
 
     if (!year || !quarter) {
       return res.status(400).json({
@@ -106,6 +107,7 @@ export const exportCashPositionExcel = async (req, res, next) => {
       start_date: start,
       end_date: end,
       organization: resolvedOrg,
+      status,
     });
 
     const grouped = groupCashPositionData(raw);
@@ -184,7 +186,7 @@ const __dirname = path.dirname(__filename);
 
 export const exportCashPositionPDF = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
 
     if (!year || !quarter) {
       return res.status(400).json({
@@ -213,6 +215,7 @@ export const exportCashPositionPDF = async (req, res, next) => {
       start_date: start,
       end_date: end,
       organization: resolvedOrg,
+      status,
     });
 
     const rows = groupCashPositionData(raw);
@@ -246,7 +249,7 @@ export const exportCashPositionPDF = async (req, res, next) => {
 
 export const getDetailedCashReport = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
     const user = req.user;
 
     if (!year || !quarter) {
@@ -272,6 +275,7 @@ export const getDetailedCashReport = async (req, res, next) => {
       year,
       quarter,
       organization: resolvedOrg,
+      status,
     });
 
     res.json({

@@ -134,7 +134,7 @@ export function generateReallocationSummaryPDF({
   // =========================
   const structure = [
     "Compensation of Employees",
-    "Use of Goods and Services",
+    "Goods and Services",
     "Capital Expenditure",
   ];
 

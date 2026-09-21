@@ -11,6 +11,7 @@ export async function getQuarterlyReportData({
   sourceOfFunding,
   organization,
   user,
+  status = "ALL",
 }) {
   const quarters = {
     1: [`${year}-01-01`, `${year}-03-31`],
@@ -33,6 +34,10 @@ export async function getQuarterlyReportData({
     where.organization = user.organization;
   } else if (organization && organization !== "ALL") {
     where.organization = organization;
+  }
+
+  if (status && status !== "ALL") {
+    where.status = status;
   }
 
 
@@ -102,7 +107,7 @@ export function groupEconomicData(report, selectedSource) {
 export function sortByEconomicOrder(arr) {
   const desiredOrder = [
     "Compensation of Employees",
-    "Use of Goods and Services",
+    "Goods and Services",
     "Capital Expenditure",
   ];
 
@@ -131,6 +136,7 @@ export async function getQuarterlyRevenueData({
   year,
   quarter,
   organization,
+  status = "ALL",
 }) {
   const quarters = {
     1: [`${year}-01-01`, `${year}-03-31`],
@@ -145,6 +151,10 @@ export async function getQuarterlyRevenueData({
     date: { [Op.between]: [start, end] },
     ...(organization && { organization }), // null = ALL
   };
+
+  if (status && status !== "ALL") {
+    where.status = status;
+  }
 
   return Revenue.findAll({
     where,

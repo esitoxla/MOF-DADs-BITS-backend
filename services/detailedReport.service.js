@@ -3,7 +3,7 @@ import { Op } from "sequelize";
 
 
 
-export async function getDetailedECReport({ year, quarter, organization }) {
+export async function getDetailedECReport({ year, quarter, organization, status = "ALL" }) {
   const quarters = {
     1: [`${year}-01-01`, `${year}-03-31`],
     2: [`${year}-04-01`, `${year}-06-30`],
@@ -17,6 +17,10 @@ export async function getDetailedECReport({ year, quarter, organization }) {
     date: { [Op.between]: [start, end] },
     ...(organization && organization !== "ALL" && { organization }),
   };
+
+  if (status && status !== "ALL") {
+    where.status = status;
+  }
 
   return BudgetExpenditure.findAll({
     where,

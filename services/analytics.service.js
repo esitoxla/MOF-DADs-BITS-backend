@@ -44,6 +44,7 @@ const QUARTER_BOUNDS = {
 const CURRENCIES = ["GHS", "EUR", "GBP", "USD"];
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const round3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
 
 const isAll = (value) => !value || String(value).toUpperCase() === "ALL";
 
@@ -466,7 +467,7 @@ export async function getDashboardAnalyticsData({
   const prevExpenditure = prevEco.expenditure;
   const totalBudget = currentEco.budget;
   const budgetUtilisationPct = totalBudget
-    ? round2((expenditureToDate / totalBudget) * 100)
+    ? round3((expenditureToDate / totalBudget) * 100)
     : 0;
 
   return {

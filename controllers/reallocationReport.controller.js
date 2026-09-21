@@ -15,7 +15,7 @@ import { generateReallocationSummaryPDF } from "../utils/reallocationReport.pdf.
 // =========================
 export const getQuarterlyReallocationReport = async (req, res, next) => {
   try {
-    let { year, quarter, organization, sourceOfFunding } = req.query;
+    let { year, quarter, organization, sourceOfFunding, status = "ALL" } = req.query;
     const user = req.user;
 
     // =========================
@@ -69,6 +69,7 @@ export const getQuarterlyReallocationReport = async (req, res, next) => {
       end_date: end,
       organization: resolvedOrg,
       sourceOfFunding,
+      status,
     });
 
     // 🧪 DEBUG (remove later)
@@ -101,7 +102,7 @@ export const getQuarterlyReallocationReport = async (req, res, next) => {
 // =========================
 export const exportReallocationSummaryExcel = async (req, res, next) => {
   try {
-    let { year, quarter, organization } = req.query;
+    let { year, quarter, organization, status = "ALL" } = req.query;
 
     // =========================
     // VALIDATION
@@ -157,6 +158,7 @@ export const exportReallocationSummaryExcel = async (req, res, next) => {
       end_date: end,
       organization: resolvedOrg,
       sourceOfFunding: "GOG", // enforce GOG only
+      status,
     });
 
     const grouped = groupReallocationSummary(raw);
@@ -199,7 +201,7 @@ export const exportReallocationSummaryExcel = async (req, res, next) => {
    
     const structure = [
       "Compensation of Employees",
-      "Use of Goods and Services",
+      "Goods and Services",
       "Capital Expenditure",
     ];
 
@@ -275,7 +277,7 @@ export const exportReallocationSummaryExcel = async (req, res, next) => {
 // =========================
 export const exportReallocationSummaryPDF = async (req, res, next) => {
   try {
-    let { year, quarter, organization } = req.query;
+    let { year, quarter, organization, status = "ALL" } = req.query;
 
     // =========================
     // VALIDATION
@@ -329,6 +331,7 @@ export const exportReallocationSummaryPDF = async (req, res, next) => {
       end_date: end,
       organization: resolvedOrg,
       sourceOfFunding: "GOG", // 🔥 enforce
+      status,
     });
 
     const grouped = groupReallocationSummary(raw);
@@ -369,7 +372,7 @@ export const exportReallocationSummaryPDF = async (req, res, next) => {
 // =========================
 export const getDetailedReallocationReport = async (req, res, next) => {
   try {
-    let { year, quarter, organization, sourceOfFunding } = req.query;
+    let { year, quarter, organization, sourceOfFunding, status = "ALL" } = req.query;
     const user = req.user;
 
     if (!year || !quarter) {
@@ -398,6 +401,7 @@ export const getDetailedReallocationReport = async (req, res, next) => {
       quarter,
       organization: resolvedOrg,
       sourceOfFunding,
+      status,
     });
 
     res.json({

@@ -59,13 +59,17 @@ function resolveQuarterRange(year, quarter) {
  * SUMMARY (GROUPED) REVENUE
  * =========================
  */
-export async function getQuarterlyRevenueData({ year, quarter, organization }) {
+export async function getQuarterlyRevenueData({ year, quarter, organization, status = "ALL" }) {
   const [startDate, endDate] = resolveQuarterRange(year, quarter);
 
   const where = {
     date: { [Op.between]: [startDate, endDate] },
     ...(organization && organization !== "ALL" && { organization }),
   };
+
+  if (status && status !== "ALL") {
+    where.status = status;
+  }
 
   return Revenue.findAll({
     where,
@@ -86,13 +90,17 @@ export async function getQuarterlyRevenueData({ year, quarter, organization }) {
  * DETAILED (RAW) REVENUE
  * =========================
  */
-export async function getDetailedRevenueData({ year, quarter, organization }) {
+export async function getDetailedRevenueData({ year, quarter, organization, status = "ALL" }) {
   const [startDate, endDate] = resolveQuarterRange(year, quarter);
 
   const where = {
     date: { [Op.between]: [startDate, endDate] },
     ...(organization && organization !== "ALL" && { organization }),
   };
+
+  if (status && status !== "ALL") {
+    where.status = status;
+  }
 
   return Revenue.findAll({
     where,

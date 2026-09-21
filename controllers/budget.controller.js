@@ -86,10 +86,10 @@ export const getBudgetValues = async (req, res, next) => {
     const allotment = Number(allocation.allotment || 0);
 
     const isGOG = fund.trim() === "GOG";
-    const isGoodsAndServices = eco.trim() === "Use of Goods and Services";
+    const isGoodsAndServices = eco.trim() === "Goods and Services";
 
     /**
-     * CASE 1: UGS + GOG → Allotment-based
+     * CASE 1: Goods and Services + GOG → Allotment-based
      */
     if (isGOG && isGoodsAndServices && allotment > 0) {
       const previousActualExpenditure =

@@ -87,7 +87,7 @@ export const addExpenditure = async (req, res, next) => {
     const currentRelease = Number(releases || 0);
 
     // const isGoodsAndServicesGOG =
-    //   economicClassification === "Use of Goods and Services" &&
+    //   economicClassification === "Goods and Services" &&
     //   sourceOfFunding === "GOG";
 
     /* =========================
@@ -100,11 +100,11 @@ export const addExpenditure = async (req, res, next) => {
     const hasAllotment = allotment > 0;
     const isGOG = sourceOfFunding === "GOG";
     const isGoodsAndServices =
-      economicClassification === "Use of Goods and Services";
+      economicClassification === "Goods and Services";
 
     /**
      * CASE 1:
-     * Use of Goods & Services + GOG
+     * Goods and Services + GOG
      * → Allotment Balance (Actual Expenditure based)
      */
     if (isGOG && isGoodsAndServices && hasAllotment) {
@@ -338,11 +338,11 @@ export const updateExpenditure = async (req, res, next) => {
     const hasAllotment = allotment > 0;
     const isGOG = effectiveValues.sourceOfFunding === "GOG";
     const isGoodsAndServices =
-      effectiveValues.economicClassification === "Use of Goods and Services";
+      effectiveValues.economicClassification === "Goods and Services";
 
     /**
      * CASE 1:
-     * Use of Goods & Services + GOG
+     * Goods and Services + GOG
      * → Allotment Balance (Actual Expenditure based)
      */
     if (isGOG && isGoodsAndServices && hasAllotment) {

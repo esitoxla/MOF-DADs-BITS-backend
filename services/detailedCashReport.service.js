@@ -5,6 +5,7 @@ export const getDetailedCashData = async ({
   year,
   quarter,
   organization,
+  status = "ALL",
 }) => {
   const getQuarterDateRange = (year, quarter) => {
     const ranges = {
@@ -27,6 +28,10 @@ export const getDetailedCashData = async ({
 
   if (organization) {
     where.organization = organization;
+  }
+
+  if (status && status !== "ALL") {
+    where.status = status;
   }
 
   return Cash.findAll({

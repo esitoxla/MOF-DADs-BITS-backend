@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 // =========================================================
 export const getQuarterlyRevenueReport = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
 
     if (!year || !quarter) {
       return res
@@ -47,6 +47,7 @@ export const getQuarterlyRevenueReport = async (req, res, next) => {
       year,
       quarter,
       organization: resolvedOrg, // null = ALL
+      status,
     });
 
     
@@ -74,7 +75,7 @@ export const getQuarterlyRevenueReport = async (req, res, next) => {
 export const exportQuarterlyRevenueExcel = async (req, res, next) => {
   try {
     //Read query params
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
 
     //Validate inputs
     if (!year || !quarter)
@@ -104,6 +105,7 @@ export const exportQuarterlyRevenueExcel = async (req, res, next) => {
       year,
       quarter,
       organization: resolvedOrg,
+      status,
     });
 
 
@@ -195,7 +197,7 @@ export const exportQuarterlyRevenueExcel = async (req, res, next) => {
 // =========================================================
 export const exportQuarterlyRevenuePDF = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
 
     if (!year || !quarter)
       return res.status(400).json({
@@ -222,6 +224,7 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
       year,
       quarter,
       organization: resolvedOrg,
+      status,
     });
 
     const grouped = groupRevenueData(raw);
@@ -257,7 +260,7 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
 // =========================================================
 export const getDetailedRevenueReport = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
     const user = req.user;
 
     if (!year || !quarter) {
@@ -286,6 +289,7 @@ export const getDetailedRevenueReport = async (req, res, next) => {
       year,
       quarter,
       organization: resolvedOrg, // null = ALL
+      status,
     });
 
     res.json({

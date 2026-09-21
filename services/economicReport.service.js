@@ -7,6 +7,7 @@ export async function buildEconomicReport({
   sourceOfFunding,
   organization,
   user,
+  status = "ALL",
 }) {
   const appropriations = await getAppropriationData({
     year,
@@ -21,6 +22,7 @@ export async function buildEconomicReport({
     sourceOfFunding,
     organization,
     user,
+    status,
   });
 
   const map = new Map();

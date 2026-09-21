@@ -12,7 +12,7 @@ import { getDetailedECReport } from "../services/detailedReport.service.js";
 
 export const getQuarterlyReport = async (req, res, next) => {
   try {
-    const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
+    const { year, quarter, sourceOfFunding = "ALL", organization, status = "ALL" } = req.query;
 
     if (!req.user) {
       return res.status(401).json({ message: "User not logged in" });
@@ -44,6 +44,7 @@ export const getQuarterlyReport = async (req, res, next) => {
       sourceOfFunding,
       organization: resolvedOrg,
       user,
+      status,
     });
 
     // Group for UI
@@ -90,7 +91,7 @@ export const getQuarterlyReport = async (req, res, next) => {
 
 export const exportQuarterlyReportExcel = async (req, res, next) => {
   try {
-    const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
+    const { year, quarter, sourceOfFunding = "ALL", organization, status = "ALL" } = req.query;
 
     // =========================
     // BASIC VALIDATION
@@ -128,6 +129,7 @@ export const exportQuarterlyReportExcel = async (req, res, next) => {
       sourceOfFunding,
       organization: resolvedOrg,
       user,
+      status,
     });
 
     // Sort economic classification order
@@ -261,7 +263,7 @@ const __dirname = path.dirname(__filename);
 
 export const exportQuarterlyReportPDF = async (req, res, next) => {
   try {
-    const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
+    const { year, quarter, sourceOfFunding = "ALL", organization, status = "ALL" } = req.query;
 
     // Validate auth
     if (!req.user) {
@@ -304,6 +306,7 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
       sourceOfFunding,
       organization: resolvedOrg,
       user,
+      status,
     });
 
 
@@ -366,7 +369,7 @@ export const exportQuarterlyReportPDF = async (req, res, next) => {
 
 export const getDetailedEC = async (req, res, next) => {
   try {
-    const { year, quarter, organization } = req.query;
+    const { year, quarter, organization, status = "ALL" } = req.query;
    
     if (!req.user) {
       return res.status(401).json({ message: "User not logged in" });
@@ -397,6 +400,7 @@ export const getDetailedEC = async (req, res, next) => {
       year,
       quarter,
       organization: resolvedOrg, // null = ALL
+      status,
     });
 
     res.json({

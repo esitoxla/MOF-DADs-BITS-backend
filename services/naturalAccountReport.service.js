@@ -10,6 +10,7 @@ export async function getQuarterlyNaturalAccountData({
   sourceOfFunding,
   organization,
   user,
+  status = "ALL",
 }) {
   const quarterKey = Number(quarter);
 
@@ -38,6 +39,10 @@ export async function getQuarterlyNaturalAccountData({
     where.organization = user.organization;
   } else if (organization && organization !== "ALL") {
     where.organization = organization;
+  }
+
+  if (status && status !== "ALL") {
+    where.status = status;
   }
 
   return await BudgetExpenditure.findAll({

@@ -5,7 +5,7 @@ export const getDetailedReallocationData = async ({
   year,
   quarter,
   organization,
-  
+  status = "ALL",
 }) => {
   const ranges = {
     1: { start: `${year}-01-01`, end: `${year}-03-31` },
@@ -29,6 +29,10 @@ export const getDetailedReallocationData = async ({
 
   // enforce GOG (optional but recommended)
   where.sourceOfFunding = "GOG";
+
+  if (status && status !== "ALL") {
+    where.status = status;
+  }
 
   return Reallocation.findAll({
     where,

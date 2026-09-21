@@ -6,6 +6,7 @@ export const getCashPositionData = async ({
   start_date,
   end_date,
   organization,
+  status = "ALL",
 }) => {
   const where = {
     as_at_date: {
@@ -15,6 +16,10 @@ export const getCashPositionData = async ({
 
   if (organization) {
     where.organization = organization;
+  }
+
+  if (status && status !== "ALL") {
+    where.status = status;
   }
 
   return Cash.findAll({

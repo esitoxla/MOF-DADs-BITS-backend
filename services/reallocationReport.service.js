@@ -6,6 +6,7 @@ export const getReallocationSummaryData = async ({
   end_date,
   organization,
   sourceOfFunding,
+  status = "ALL",
 }) => {
   const where = {
     createdAt: {
@@ -22,6 +23,10 @@ export const getReallocationSummaryData = async ({
   //  already correct
   if (sourceOfFunding && sourceOfFunding !== "ALL") {
     where.sourceOfFunding = sourceOfFunding;
+  }
+
+  if (status && status !== "ALL") {
+    where.status = status;
   }
 
   return Reallocation.findAll({

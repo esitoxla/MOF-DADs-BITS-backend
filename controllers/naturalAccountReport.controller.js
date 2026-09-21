@@ -10,7 +10,7 @@ import ExcelJS from "exceljs";
 
 export const getNaturalAccountReport = async (req, res, next) => {
   try {
-    const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
+    const { year, quarter, sourceOfFunding = "ALL", organization, status = "ALL" } = req.query;
 
     const user = await User.findByPk(req.user.id);
 
@@ -20,6 +20,7 @@ export const getNaturalAccountReport = async (req, res, next) => {
       sourceOfFunding,
       organization,
       user,
+      status,
     });
 
     // TOTALS
@@ -58,7 +59,7 @@ const __dirname = path.dirname(__filename);
 
 export const exportNaturalAccountPDF = async (req, res, next) => {
   try {
-    const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
+    const { year, quarter, sourceOfFunding = "ALL", organization, status = "ALL" } = req.query;
 
     // =========================
     // VALIDATION
@@ -106,6 +107,7 @@ export const exportNaturalAccountPDF = async (req, res, next) => {
       sourceOfFunding,
       organization: resolvedOrg,
       user,
+      status,
     });
 
     // =========================
@@ -161,7 +163,7 @@ export const exportNaturalAccountPDF = async (req, res, next) => {
 
 export const exportNaturalAccountExcel = async (req, res, next) => {
   try {
-    const { year, quarter, sourceOfFunding = "ALL", organization } = req.query;
+    const { year, quarter, sourceOfFunding = "ALL", organization, status = "ALL" } = req.query;
 
     // =========================
     // VALIDATION
@@ -201,6 +203,7 @@ export const exportNaturalAccountExcel = async (req, res, next) => {
       sourceOfFunding,
       organization: resolvedOrg,
       user,
+      status,
     });
 
     // =========================

@@ -275,7 +275,7 @@ export const downloadAppropriationTemplate = async (req, res, next) => {
     // Add a sample row for guidance
     sheet.addRow({
       organization: "MOF",
-      economicClassification: "Use and Goods and Services",
+      economicClassification: "Goods and Services",
       sourceOfFunding: "GOG",
       naturalAccount: "123456-Transportation",
       appropriation: 500000.0,
