@@ -8,6 +8,7 @@ import {
   registerUser,
   removeAvatar,
   updateAvatar,
+  updateProfile,
 } from "../controllers/auth.controller.js";
 import { protectRoutes } from "../middleware/routesProtect.js";
 import { upload } from "../middleware/uploadProfile.js";
@@ -19,6 +20,8 @@ router.post("/register", registerUser);
 router.post("/login", login);
 
 router.get("/me", getUser);
+
+router.patch("/profile", protectRoutes, updateProfile);
 
 router.post("/change-password",protectRoutes, changePassword);
 

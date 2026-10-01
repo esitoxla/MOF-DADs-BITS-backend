@@ -171,6 +171,48 @@ export const getUser = async (req, res, next) => {
   }
 };
 
+export const updateProfile = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+    const phone = typeof req.body.phone === "string" ? req.body.phone.trim() : "";
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name is required",
+      });
+    }
+
+    if (phone && !/^[0-9+\-().\s]{7,20}$/.test(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid phone number",
+      });
+    }
+
+    user.name = name;
+    user.phone = phone || null;
+    await user.save();
+
+    const { password, avatarPublicId, ...userData } = user.get({ plain: true });
+
+    res.status(200).json({
+      success: true,
+      user: userData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const changePassword = async (req, res, next) => {
   try {
     const { oldPassword, newPassword } = req.body;
