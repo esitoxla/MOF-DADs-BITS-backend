@@ -1,22 +1,31 @@
+// utils/pdfGenerator.js
 import PDFDocument from "pdfkit";
-import path from "path";
 import { getQuarterPeriod } from "./quarterPeriod.js";
+import {
+  THEME,
+  fmt,
+  drawWatermark,
+  drawReportHeader,
+  drawTableHeader,
+  drawRow,
+  ensureSpace,
+  addFooters,
+} from "./pdfTheme.js";
 
 export function generateQuarterlyPDF({
-  grouped, //already grouped & final report rows
+  grouped, // already grouped & final report rows
   year,
   quarter,
   sourceOfFunding,
-  user, //for header display (DADs)
+  user, // fallback for the DADs line
+  organizationLabel, // optional: the org selected in the UI
   logoPath,
   res, // writable HTTP stream
 }) {
-  //PDF document initialization
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
-
   const period = getQuarterPeriod(year, quarter);
+  const month = period.endMonthName;
 
-  // Compute totals from grouped data
   const totals = grouped.reduce(
     (acc, item) => ({
       totalBudget: acc.totalBudget + (item.totalBudget || 0),
@@ -34,297 +43,98 @@ export function generateQuarterlyPDF({
     },
   );
 
-  const generatedDate = new Date().toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  // The controller already set them. Just stream the PDF.
-  //Streams the PDF directly to the HTTP response
   doc.pipe(res);
 
-  // -----------------------------
-  // Watermark (background image)
-  // -----------------------------
-  try {
-    doc.save(); // save current graphics state
+  // Watermark first so everything else paints over it
+  drawWatermark(doc, logoPath);
 
-    doc.opacity(0.1); // very light watermark
-    doc.image(logoPath, 120, 200, { width: 350 });
-    // adjust X,Y,width depending on where you want it
-
-    doc.restore(); // restore normal opacity
-  } catch (err) {
-    console.log("Watermark image error:", err.message);
-  }
-
-  // ===========================
-  // HEADER BLOCK
-  // ===========================
-
-  // Title (takes full width)
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(16)
-    .text("Summary of Budget Performance by Economic Classification", 40, 40);
-
-  // The Y where DADs and LOGO should BOTH start
-  const headerY = 80; // Adjust this number for spacing
-  const leftX = 40;
-  const logoHeaderY = 70;
-  const logoX = doc.page.width - 120; // Right side of page
-
-  // LEFT DETAILS (start at headerY)
-  doc
-    //Mirrors what the UI header shows
-    .font("Helvetica")
-    .fontSize(12)
-    .text(`DADs: ${user.organization}`, leftX, headerY)
-    .text(
-      `Reporting Period: Q${quarter} (${period.endMonthName} ${year})`,
-      leftX,
-      headerY + 15,
-    )
-    .text(`Source of Funding: ${sourceOfFunding}`, leftX, headerY + 30)
-    .text(`Currency: Ghana Cedis (GHS)`, leftX, headerY + 45);
-
-  // RIGHT LOGO, same height as "DADs:"
-  if (logoPath) {
-    try {
-      doc.image(logoPath, logoX, logoHeaderY, { width: 90, height: 60 });
-    } catch (err) {
-      console.log("Logo error:", err.message);
-    }
-  }
-
-  // Move cursor below header area
-  doc.y = headerY + 90;
-
-  // ===============================
-  // TABLE SECTION
-  // ===============================
-
-  function drawCell(
-    x,
-    y,
-    width,
-    height,
-    text,
-    fontOptions = {},
-    align = "left",
-  ) {
-    // Border
-    doc.rect(x, y, width, height).strokeColor("#D1D5DB").stroke(); // light gray border
-
-    // Text
-    doc
-      .fillColor("#000")
-      .font(fontOptions.font || "Helvetica")
-      .fontSize(fontOptions.size || 10)
-      .text(text, x + 5, y + 6, {
-        width: width - 10,
-        align,
-      });
-  }
-
-  // Column layout
-  const tableTop = doc.y + 10;
-  const colWidths = {
-    item: 150,
-    appropriation: 100,
-    releases: 70,
-    expenditure: 70,
-    payments: 70,
-    projection: 70,
-  };
-
-  const tableStartX = 40;
-
-  // Helper to draw table headers
-  function drawTableHeaders(y) {
-    const headers = [
-      "EXPENDITURE ITEM",
-      `${period.year} APPROVED\nBUDGET / APPROPRIATION`,
-      `AMOUNT RELEASED\nAS AT END ${period.endMonthName} ${period.year}`,
-      `ACTUAL EXPENDITURE\nAS AT END ${period.endMonthName} ${period.year}`,
-      `ACTUAL PAYMENTS\nAS AT END ${period.endMonthName} ${period.year}`,
-      `PROJECTIONS AS\nAT 31 DEC ${period.year}`,
-    ];
-
-    let x = tableStartX;
-    const headerHeight = 60; // <--- increase height here
-
-    headers.forEach((header, i) => {
-      const width = Object.values(colWidths)[i];
-
-      // Background (light blue header)
-      doc.rect(x, y, width, headerHeight).fill("#F3F4F6"); // UI light gray/blue
-      doc.fillColor("#000");
-
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(9)
-        .text(header, x + 5, y + 12, {
-          width: width - 10,
-          align: "center",
-        });
-
-      // Border
-      doc.rect(x, y, width, headerHeight).strokeColor("#D1D5DB").stroke();
-
-      x += width;
-    });
-
-    return y + headerHeight;
-  }
-
-  // Draw headers
-  let yPosition = drawTableHeaders(tableTop);
-
-  grouped.forEach((item) => {
-    yPosition = drawParentRow(item, yPosition);
-
-    item.breakdown.forEach((b) => {
-      yPosition = drawSubRow(b, yPosition);
-    });
-
-    yPosition += 8;
+  // Header band
+  let y = drawReportHeader(doc, {
+    title:
+      "Summary of Budget Performance by Economic Classification and Funding",
+    lines: [
+      `DADs: ${organizationLabel || user?.organization || "-"}`,
+      `Reporting Period: Q${quarter} (${month} ${period.year})`,
+      `Source of Funding: ${sourceOfFunding}`,
+      "Currency: Ghana Cedis (GHS)",
+    ],
+    logoPath,
   });
 
-  // Helper: Draw parent economic classification row
-  function drawParentRow(item, y) {
-    let x = tableStartX;
+  // Widths sum to 515 = A4 width (595) minus 40pt margins on each side
+  const cols = [
+    { label: "EXPENDITURE ITEM", w: 135 },
+    { label: `${period.year} APPROVED BUDGET`, sub: "Appropriation", w: 88 },
+    {
+      label: "AMOUNT RELEASED",
+      sub: `as at end ${month} ${period.year}`,
+      w: 73,
+    },
+    {
+      label: "ACTUAL EXPENDITURE",
+      sub: `as at end ${month} ${period.year}`,
+      w: 73,
+    },
+    {
+      label: "ACTUAL PAYMENTS",
+      sub: `as at end ${month} ${period.year}`,
+      w: 73,
+    },
+    { label: "PROJECTIONS", sub: `as at 31 Dec ${period.year}`, w: 73 },
+  ];
 
-    const values = [
-      item.title,
-      Number(item.totalBudget || 0).toLocaleString(),
-      Number(item.amountReleased || 0).toLocaleString(),
-      Number(item.actualExpenditure || 0).toLocaleString(),
-      Number(item.actualPayments || 0).toLocaleString(),
-      Number(item.projection || 0).toLocaleString(),
-    ];
+  // Runs on every overflow page: watermark + repeated column header
+  const onNewPage = () => {
+    drawWatermark(doc, logoPath);
+    return drawTableHeader(doc, 50, cols);
+  };
 
-    values.forEach((val, i) => {
-      const width = Object.values(colWidths)[i];
-      drawCell(
-        x,
-        y,
-        width,
-        22,
-        val,
-        { font: "Helvetica-Bold", size: 10 },
-        i === 0 ? "left" : "right",
-      );
-      x += width;
+  y = drawTableHeader(doc, y, cols);
+
+  const vals = (o) =>
+    [
+      o.totalBudget,
+      o.amountReleased,
+      o.actualExpenditure,
+      o.actualPayments,
+      o.projection,
+    ].map(fmt);
+
+  grouped.forEach((item) => {
+    // keep a parent row together with its first sub-row
+    y = ensureSpace(doc, y, 22 + 20, onNewPage);
+    y = drawRow(doc, y, cols, [item.title, ...vals(item)], {
+      fill: THEME.tint,
+      font: "Helvetica-Bold",
+      size: 10,
+      h: 22,
     });
 
-    return y + 22;
-  }
-
-  // Helper: Draw funding breakdown rows (GOG/IGF/DPF)
-  function drawSubRow(b, y) {
-    let x = tableStartX;
-
-    const values = [
-      "   " + b.source,
-      Number(b.totalBudget || 0).toLocaleString(),
-      Number(b.amountReleased || 0).toLocaleString(),
-      Number(b.actualExpenditure || 0).toLocaleString(),
-      Number(b.actualPayments || 0).toLocaleString(),
-      Number(b.projection || 0).toLocaleString(),
-    ];
-
-    values.forEach((val, i) => {
-      const width = Object.values(colWidths)[i];
-      drawCell(
-        x,
-        y,
-        width,
-        20,
-        val,
-        { font: "Helvetica-Oblique", size: 9 },
-        i === 0 ? "left" : "right",
-      );
-      x += width;
-    });
-
-    return y + 20;
-  }
-
-  // ---------------------------
-  // TOTAL ROW
-  // ---------------------------
-  function drawTotalRow(totals, y) {
-    let x = tableStartX;
-
-    const values = [
-      "TOTAL",
-      Number(totals.totalBudget || 0).toLocaleString(),
-      Number(totals.amountReleased || 0).toLocaleString(),
-      Number(totals.actualExpenditure || 0).toLocaleString(),
-      Number(totals.actualPayments || 0).toLocaleString(),
-      Number(totals.projection || 0).toLocaleString(),
-    ];
-
-    values.forEach((val, i) => {
-      const width = Object.values(colWidths)[i];
-
-      // Background
-      doc.rect(x, y, width, 22).fill("#E8F5E9");
-
-      // Text
-      doc
-        .fillColor("#166534")
-        .font("Helvetica-Bold")
-        .fontSize(11)
-        .text(val, x + 5, y + 5, {
-          width: width - 10,
-          align: i === 0 ? "left" : "right",
-        });
-
-      // Border
-      doc.rect(x, y, width, 22).strokeColor("#A5D6A7").stroke();
-
-      x += width;
-    });
-
-    return y + 22;
-  }
-
-  yPosition = drawTotalRow(totals, yPosition);
-
-  // ===========================
-  // FOOTER (Generated Date + Page Numbers)
-  // ===========================
-
-  const range = doc.bufferedPageRange(); // get total pages
-
-  for (let i = 0; i < range.count; i++) {
-    doc.switchToPage(i);
-
-    // Check if page has meaningful content
-    if (doc.page.content && doc.page.content.length > 0) {
-      const pageBottom = doc.page.height - 30;
-
-      // Left side: Generated date
-      doc
-        .font("Helvetica")
-        .fontSize(9)
-        .fillColor("gray")
-        .text(`Generated on: ${generatedDate}`, 40, pageBottom, {
-          align: "left",
-        });
-
-      // Right side: Page number
-      doc.text(`Page ${i + 1} of ${range.count}`, 0, pageBottom, {
-        align: "right",
+    (item.breakdown || []).forEach((b) => {
+      y = ensureSpace(doc, y, 20, onNewPage);
+      y = drawRow(doc, y, cols, [b.source, ...vals(b)], {
+        font: "Helvetica-Oblique",
+        size: 9,
+        h: 20,
+        indent: 12,
+        color: "#4B5563",
       });
-    }
-  }
+    });
+
+    y += 6; // breathing room between groups
+  });
+
+  y = ensureSpace(doc, y, 26, onNewPage);
+  drawRow(doc, y, cols, ["TOTAL", ...vals(totals)], {
+    fill: THEME.green,
+    font: "Helvetica-Bold",
+    size: 10.5,
+    h: 26,
+    color: "#FFFFFF",
+  });
+
+  // Footer on every page: generated date + "Page X of N"
+  addFooters(doc, "BITS | Ministry of Finance");
 
   doc.end();
 }

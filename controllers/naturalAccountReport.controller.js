@@ -93,10 +93,14 @@ export const exportNaturalAccountPDF = async (req, res, next) => {
     // =========================
     // RESOLVE ORG
     // =========================
-    const { organization: resolvedOrg } = resolveOrganizationScope({
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
       user,
       organization,
     });
+
+    // Stored organization values are the display names (no Organization model,
+    // and no separate id-to-label helper). ALL is the only special case.
+    const organizationLabel = isAll ? "ALL ORGANIZATIONS" : resolvedOrg;
 
     // =========================
     // FETCH REPORT (SERVICE LAYER)
@@ -151,6 +155,7 @@ export const exportNaturalAccountPDF = async (req, res, next) => {
       quarter,
       sourceOfFunding,
       user,
+      organizationLabel,
       logoPath,
       res,
     });

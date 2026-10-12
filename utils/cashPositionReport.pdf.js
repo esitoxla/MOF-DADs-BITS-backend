@@ -1,168 +1,129 @@
+// utils/cashPositionReport.pdf.js
 import PDFDocument from "pdfkit";
+import { getQuarterPeriod } from "./quarterPeriod.js";
+import {
+  THEME,
+  MARGIN,
+  fmt,
+  drawWatermark,
+  drawReportHeader,
+  drawTableHeader,
+  drawRow,
+  measureRowHeight,
+  ensureSpace,
+  addFooters,
+} from "./pdfTheme.js";
 
-export const generateCashPositionPDF = ({
+export function generateCashPositionPDF({
   rows = [],
   totals = {},
   year,
   quarter,
-  organization,
+  user,
+  organizationLabel,
   logoPath,
   res,
-}) => {
-  const doc = new PDFDocument({ margin: 40, size: "A4" });
+}) {
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
+  const period = getQuarterPeriod(year, quarter);
+  const month = period.endMonthName;
+
   doc.pipe(res);
 
-  const formatMoney = (value) =>
-    Number(value || 0).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  drawWatermark(doc, logoPath);
 
-  /* =========================
-     WATERMARK
-  ========================== */
-  try {
-    doc.save();
-    doc.opacity(0.08);
-    doc.image(logoPath, 120, 220, { width: 350 });
-    doc.restore();
-  } catch (err) {
-    console.log("Watermark error:", err.message);
-  }
+  let y = drawReportHeader(doc, {
+    title: `MDAs Cash Position as at end ${month} ${period.year} - MOF_DADs`,
+    lines: [
+      `DADs: ${organizationLabel || user?.organization || "-"}`,
+      `Reporting Period: Q${quarter} (${month} ${period.year})`,
+      "Currency: Ghana Cedis (GHS)",
+    ],
+    logoPath,
+  });
 
-  /* =========================
-     TITLE
-  ========================== */
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(16)
-    .text(`MDAs Cash Position as at end Q${quarter} ${year}`, {
-      align: "center",
-    });
-
-  /* =========================
-   HEADER INFO + LOGO
-========================= */
-
-  const headerY = 90;
-  const leftX = 40;
-  const logoHeaderY = 70;
-  const logoX = doc.page.width - 140;
-
-  doc
-    .font("Helvetica")
-    .fontSize(12)
-    .text(`DADs: ${organization}`, leftX, headerY)
-    .text(
-      `Reporting Period: Q${quarter} (${year})`,
-      leftX,
-      headerY + 15,
-    )
-    .text(`Currency: Ghana Cedis (GHS)`, leftX, headerY + 30);
-
-  try {
-    doc.image(logoPath, logoX, logoHeaderY, { width: 70, height: 60 });
-  } catch (err) {
-    console.log("Logo error:", err.message);
-  }
-
-  doc.moveDown(3);
-
-  /* =========================
-     TABLE CONFIG
-  ========================== */
-  const columns = [
-    { key: "account_name", label: "ACCOUNT NAME", width: 200, align: "left" },
-    { key: "GHS", label: "GHS", width: 70, align: "right" },
-    { key: "EUR", label: "EUR", width: 70, align: "right" },
-    { key: "GBP", label: "GBP", width: 80, align: "right" },
-    { key: "USD", label: "USD", width: 70, align: "right" },
+  // Widths sum to 515 = A4 width (595) minus 40pt margins on each side.
+  // Previous widths were 200 + 70 + 70 + 80 + 70 = 490; each column gained 5.
+  const cols = [
+    { label: "ACCOUNT NAME", w: 205 },
+    { label: "GHS", w: 75 },
+    { label: "EUR", w: 75 },
+    { label: "GBP", w: 85 },
+    { label: "USD", w: 75 },
   ];
 
-  let y = doc.y;
-  const rowHeight = 28;
-  let xStart;
+  const rowOpts = {
+    font: "Helvetica",
+    size: 9,
+    h: 22,
+    wrapLabel: true,
+  };
 
-  /* =========================
-     TABLE HEADER
-  ========================== */
-  xStart = doc.page.margins.left;
+  const onNewPage = () => {
+    drawWatermark(doc, logoPath);
+    return drawTableHeader(doc, 50, cols);
+  };
 
-  columns.forEach((col) => {
+  y = drawTableHeader(doc, y, cols);
+
+  const valuesOf = (row) => [
+    row.account_name ?? "",
+    fmt(row.GHS),
+    fmt(row.EUR),
+    fmt(row.GBP),
+    fmt(row.USD),
+  ];
+
+  const data = rows || [];
+  if (data.length === 0) {
+    const emptyH = 22;
+    y = ensureSpace(doc, y, emptyH, onNewPage);
+    const tableW = cols.reduce((sum, c) => sum + c.w, 0);
+    doc.rect(MARGIN, y, tableW, emptyH).lineWidth(0.5).stroke(THEME.line);
+    const cursorY = doc.y;
     doc
-      .rect(xStart, y, col.width, rowHeight)
-      .fillAndStroke("#F3F4F6", "#9CA3AF");
-
-    doc
-      .fillColor("#000")
-      .font("Helvetica-Bold")
+      .fillColor(THEME.muted)
+      .font("Helvetica")
       .fontSize(9)
-      .text(col.label, xStart + 4, y + 9, {
-        width: col.width - 8,
-        align: col.align,
+      .text("No records for this period", MARGIN, y + (emptyH - 9) / 2 - 1, {
+        width: tableW,
+        align: "center",
+        lineBreak: false,
       });
-
-    xStart += col.width;
-  });
-
-  y += rowHeight;
-
-  /* =========================
-     TABLE BODY
-  ========================== */
-  doc.font("Helvetica").fontSize(9);
-
-  rows.forEach((row) => {
-    xStart = doc.page.margins.left;
-
-    columns.forEach((col) => {
-      doc.rect(xStart, y, col.width, rowHeight).strokeColor("#D1D5DB").stroke();
-
-      const value =
-        col.key === "account_name"
-          ? row.account_name
-          : formatMoney(row[col.key]);
-
-      doc.text(value || "", xStart + 4, y + 9, {
-        width: col.width - 8,
-        align: col.align,
-      });
-
-      xStart += col.width;
+    doc.y = cursorY;
+    doc.fillColor(THEME.ink);
+    y += emptyH;
+  } else {
+    data.forEach((row) => {
+      const values = valuesOf(row);
+      const needed = measureRowHeight(doc, cols, values, rowOpts);
+      y = ensureSpace(doc, y, needed, onNewPage);
+      y = drawRow(doc, y, cols, values, rowOpts);
     });
+  }
 
-    y += rowHeight;
-  });
+  y = ensureSpace(doc, y, 26, onNewPage);
+  drawRow(
+    doc,
+    y,
+    cols,
+    [
+      "TOTAL CASH POSITION",
+      fmt(totals?.GHS),
+      fmt(totals?.EUR),
+      fmt(totals?.GBP),
+      fmt(totals?.USD),
+    ],
+    {
+      fill: THEME.green,
+      font: "Helvetica-Bold",
+      size: 10.5,
+      h: 26,
+      color: "#FFFFFF",
+    },
+  );
 
-  /* =========================
-     TOTAL ROW
-  ========================== */
-  xStart = doc.page.margins.left;
-
-  columns.forEach((col) => {
-    doc
-      .rect(xStart, y, col.width, rowHeight)
-      .fillAndStroke("#E7F6EC", "#22C55E");
-
-    let value = "";
-
-    if (col.key === "account_name") {
-      value = "TOTAL CASH POSITION";
-    } else {
-      value = formatMoney(totals[col.key]);
-    }
-
-    doc
-      .fillColor("#000")
-      .font("Helvetica-Bold")
-      .fontSize(9)
-      .text(value, xStart + 4, y + 9, {
-        width: col.width - 8,
-        align: col.align,
-      });
-
-    xStart += col.width;
-  });
+  addFooters(doc, "BITS | Ministry of Finance");
 
   doc.end();
-};
+}

@@ -223,6 +223,10 @@ export const exportCashPositionPDF = async (req, res, next) => {
 
     const logoPath = path.join(__dirname, "../assets/logo.jpeg");
 
+    // Stored organization values are the display names (no Organization model,
+    // and no separate id-to-label helper). ALL is the only special case.
+    const organizationLabel = isAll ? "ALL ORGANIZATIONS" : resolvedOrg;
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
@@ -234,8 +238,9 @@ export const exportCashPositionPDF = async (req, res, next) => {
       totals,
       year,
       quarter,
+      user,
+      organizationLabel,
       logoPath,
-      organization: isAll ? "ALL" : resolvedOrg,
       res,
     });
   } catch (err) {

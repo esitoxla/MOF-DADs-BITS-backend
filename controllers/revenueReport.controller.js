@@ -230,6 +230,10 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
     const grouped = groupRevenueData(raw);
     const totals = totalRevenueSummary(grouped);
 
+    // Stored organization values are the display names (no Organization model,
+    // and no separate id-to-label helper). ALL is the only special case.
+    const organizationLabel = isAll ? "ALL ORGANIZATIONS" : resolvedOrg;
+
     const logoPath = path.join(__dirname, "../assets/logo.jpeg");
 
     res.setHeader("Content-Type", "application/pdf");
@@ -243,8 +247,8 @@ export const exportQuarterlyRevenuePDF = async (req, res, next) => {
       totals,
       year,
       quarter,
-      organization: isAll ? "ALL" : resolvedOrg,
       user,
+      organizationLabel,
       logoPath,
       res,
     });

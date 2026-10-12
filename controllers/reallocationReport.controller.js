@@ -7,6 +7,7 @@ import { getDetailedReallocationData } from "../services/detailedReallocation.se
 import ExcelJS from "exceljs";
 import User from "../models/users.js";
 import path from "path";
+import { fileURLToPath } from "url";
 import { resolveOrganizationScope } from "../utils/resolveOrganizationScope.js";
 import { generateReallocationSummaryPDF } from "../utils/reallocationReport.pdf.js";
 
@@ -272,6 +273,9 @@ export const exportReallocationSummaryExcel = async (req, res, next) => {
   }
 };
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // =========================
 // SUMMARY PDF REPORT
 // =========================
@@ -306,10 +310,14 @@ export const exportReallocationSummaryPDF = async (req, res, next) => {
     // =========================
     // RESOLVE ORGANIZATION
     // =========================
-    const { organization: resolvedOrg } = resolveOrganizationScope({
+    const { organization: resolvedOrg, isAll } = resolveOrganizationScope({
       user,
       organization,
     });
+
+    // Stored organization values are the display names (no Organization model,
+    // and no separate id-to-label helper). ALL is the only special case.
+    const organizationLabel = isAll ? "ALL ORGANIZATIONS" : resolvedOrg;
 
     // =========================
     // DATE RANGE
@@ -349,7 +357,7 @@ export const exportReallocationSummaryPDF = async (req, res, next) => {
     // =========================
     // PDF GENERATION
     // =========================
-    const logoPath = path.join(process.cwd(), "assets/logo.jpeg");
+    const logoPath = path.join(__dirname, "../assets/logo.jpeg");
 
     //  IMPORTANT: return this
     return generateReallocationSummaryPDF({
@@ -359,6 +367,7 @@ export const exportReallocationSummaryPDF = async (req, res, next) => {
       quarter,
       sourceOfFunding: "GOG",
       user,
+      organizationLabel,
       logoPath,
       res,
     });

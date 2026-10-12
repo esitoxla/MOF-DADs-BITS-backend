@@ -9,6 +9,8 @@ export const getDashboardAnalytics = async (req, res, next) => {
   try {
     const {
       organization,
+      year,
+      quarter,
       period,
       economicClassification,
       sourceOfFunding,
@@ -37,7 +39,7 @@ export const getDashboardAnalytics = async (req, res, next) => {
       organization,
     });
 
-    const parsedPeriod = parseDashboardPeriod(period);
+    const parsedPeriod = parseDashboardPeriod({ year, quarter, period });
 
     const data = await getDashboardAnalyticsData({
       user,
