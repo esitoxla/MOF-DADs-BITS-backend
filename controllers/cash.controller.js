@@ -1,6 +1,6 @@
 import Cash from "../models/cash.model.js";
 import User from "../models/users.js";
-import { notifyRole } from "../utils/notify.js";
+import { notifyRole, resolveReviewedNotifications } from "../utils/notify.js";
 
 export const addCashPosition = async (req, res, next) => {
   try {
@@ -263,6 +263,16 @@ export const approveCashPosition = async (req, res, next) => {
     record.approvedAt = new Date();
 
     await record.save();
+
+    try {
+      await resolveReviewedNotifications({
+        entityType: "cash",
+        entityId: record.id,
+        message: `${user.name} approved a cash position`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to update cash approval notifications:", notifyError);
+    }
 
     res.status(200).json({
       success: true,

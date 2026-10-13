@@ -29,3 +29,20 @@ export async function notifyRole({
     })),
   );
 }
+
+export async function resolveReviewedNotifications({
+  entityType,
+  entityId,
+  message,
+}) {
+  await Notification.update(
+    { isRead: true, message },
+    {
+      where: {
+        entityType,
+        entityId,
+        event: "reviewed",
+      },
+    },
+  );
+}

@@ -1,7 +1,7 @@
 import Reallocation from "../models/reallocation.model.js";
 import User from "../models/users.js";
 import sequelize from "../config/database.js";
-import { notifyRole } from "../utils/notify.js";
+import { notifyRole, resolveReviewedNotifications } from "../utils/notify.js";
 
 export const addReallocation = async (req, res, next) => {
   //declare variable later a value will be assigned to it
@@ -399,6 +399,16 @@ export const approveReallocation = async (req, res, next) => {
     record.approvedAt = new Date();
 
     await record.save();
+
+    try {
+      await resolveReviewedNotifications({
+        entityType: "reallocation",
+        entityId: record.id,
+        message: `${user.name} approved a reallocation record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to update reallocation approval notifications:", notifyError);
+    }
 
     res.status(200).json({
       success: true,

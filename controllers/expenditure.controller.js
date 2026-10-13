@@ -3,7 +3,7 @@ import User from "../models/users.js";
 import LoadedData from "../models/loadedData.js";
 import { Op } from "sequelize";
 import sequelize from "../config/database.js";
-import { notifyRole } from "../utils/notify.js";
+import { notifyRole, resolveReviewedNotifications } from "../utils/notify.js";
 
 export const addExpenditure = async (req, res, next) => {
   const t = await sequelize.transaction();
@@ -488,6 +488,16 @@ export const approveExpenditure = async (req, res, next) => {
     record.approvedAt = new Date();
 
     await record.save();
+
+    try {
+      await resolveReviewedNotifications({
+        entityType: "expenditure",
+        entityId: record.id,
+        message: `${user.name} approved an expenditure record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to update expenditure approval notifications:", notifyError);
+    }
 
     res.status(200).json({
       success: true,

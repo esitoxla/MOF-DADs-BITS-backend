@@ -1,7 +1,7 @@
 import Revenue from "../models/revenue.model.js";
 import User from "../models/users.js";
 import { organizationRetentionRate } from "../data/organizationRetentionRate.js";
-import { notifyRole } from "../utils/notify.js";
+import { notifyRole, resolveReviewedNotifications } from "../utils/notify.js";
 
 /**
  * Helper to compute retention + payment from C and rate
@@ -314,6 +314,16 @@ export const approveRevenue = async (req, res, next) => {
     record.approvedAt = new Date();
 
     await record.save();
+
+    try {
+      await resolveReviewedNotifications({
+        entityType: "revenue",
+        entityId: record.id,
+        message: `${user.name} approved a revenue record`,
+      });
+    } catch (notifyError) {
+      console.error("Failed to update revenue approval notifications:", notifyError);
+    }
 
     res.status(200).json({
       success: true,
