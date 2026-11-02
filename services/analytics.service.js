@@ -194,21 +194,15 @@ function matchesFilter(value, filter) {
   return String(value || "").toLowerCase() === String(filter).trim().toLowerCase();
 }
 
-function monthsInRange(start, end) {
-  const [sy, sm] = start.split("-").map(Number);
-  const [ey, em] = end.split("-").map(Number);
-  const result = [];
-  let y = sy;
-  let m = sm;
-  while (y < ey || (y === ey && m <= em)) {
-    result.push({ month: MONTHS[m - 1], monthNum: m });
-    m += 1;
-    if (m > 12) {
-      m = 1;
-      y += 1;
-    }
+function formatDay(value) {
+  if (typeof value === "string") return value.slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(value.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
-  return result;
+  return String(value).slice(0, 10);
 }
 
 async function economicTotals({
@@ -362,22 +356,23 @@ async function monthlyTrend({
   const rows = await model.findAll({
     where,
     attributes: [
-      [fn("MONTH", col(dateCol)), "monthNum"],
+      [col(dateCol), "day"],
       [fn("SUM", col(amountCol)), "amount"],
     ],
-    group: [fn("MONTH", col(dateCol))],
-    order: [[fn("MONTH", col(dateCol)), "ASC"]],
+    group: [col(dateCol)],
+    order: [[col(dateCol), "ASC"]],
     raw: true,
   });
 
-  const byMonth = new Map(
-    rows.map((row) => [Number(row.monthNum), Number(row.amount || 0)]),
-  );
-
-  return monthsInRange(start, end).map(({ month, monthNum }) => ({
-    month,
-    amount: round2(byMonth.get(monthNum) || 0),
-  }));
+  return rows.map((row) => {
+    const date = formatDay(row.day);
+    const monthNum = Number(date.slice(5, 7));
+    return {
+      date,
+      month: MONTHS[monthNum - 1] || "",
+      amount: round2(row.amount),
+    };
+  });
 }
 
 async function getTopIgfDads({ start, end, organization, revenueCategory }) {
